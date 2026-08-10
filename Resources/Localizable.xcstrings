@@ -33,6 +33,9 @@
         }
       }
     },
+    "%lld Quiet Apps" : {
+
+    },
     "%lld dB" : {
 
     },
@@ -46,6 +49,9 @@
 
     },
     "0 to 100 percent." : {
+
+    },
+    "1 Quiet App" : {
 
     },
     "100% On-Device & Private" : {
@@ -87,6 +93,9 @@
     "Apply MixPill Preset" : {
 
     },
+    "Audio Performance" : {
+
+    },
     "Automatically lowers other apps while VoIP audio is detected" : {
 
     },
@@ -96,7 +105,13 @@
     "Back" : {
 
     },
+    "Bands" : {
+
+    },
     "Blocks background applications from stealing keyboard focus" : {
+
+    },
+    "Capture & System" : {
 
     },
     "Check Now" : {
@@ -109,6 +124,9 @@
 
     },
     "Continue" : {
+
+    },
+    "CoreAudio" : {
 
     },
     "Create a rule that applies a preset when an app opens" : {
@@ -144,6 +162,9 @@
     "Disable %@" : {
 
     },
+    "Ducking Rules" : {
+
+    },
     "EQ band %@" : {
 
     },
@@ -177,10 +198,16 @@
     "General" : {
 
     },
+    "Global Hotkeys" : {
+
+    },
     "Idle" : {
 
     },
     "Individual volume control for every app on your Mac — right from the menu bar." : {
+
+    },
+    "Input App" : {
 
     },
     "Launch MixPill automatically when you log into your Mac." : {
@@ -255,6 +282,9 @@
     "No apps playing yet" : {
 
     },
+    "Noise Gate" : {
+
+    },
     "Noise gate threshold" : {
 
     },
@@ -262,6 +292,9 @@
 
     },
     "On a call — other apps duck while this one is speaking" : {
+
+    },
+    "One-Tap Presets" : {
 
     },
     "Open System Settings" : {
@@ -291,7 +324,13 @@
     "Playing" : {
 
     },
+    "Playing Now" : {
+
+    },
     "Preset" : {
+
+    },
+    "Preset Switching" : {
 
     },
     "Preset for %@" : {
@@ -310,6 +349,9 @@
 
     },
     "Rebuilds the entire output graph and re-arms captures. Takes under a second; no app restart needed." : {
+
+    },
+    "Recovery" : {
 
     },
     "Reduces audio delay for live monitoring and lip-synced video at slightly higher CPU usage" : {
@@ -362,6 +404,9 @@
 
     },
     "Save the current volume and mute state of all apps" : {
+
+    },
+    "Saved Presets" : {
 
     },
     "Search" : {
@@ -430,6 +475,9 @@
     "Starts MixPill automatically at login" : {
 
     },
+    "Startup" : {
+
+    },
     "Stops MixPill capturing this app so its own routing and latency are unaffected" : {
 
     },
@@ -452,6 +500,9 @@
 
     },
     "Unmute %@" : {
+
+    },
+    "Updates" : {
 
     },
     "Volume" : {

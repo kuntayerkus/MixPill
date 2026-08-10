@@ -36,9 +36,14 @@ public struct VisualEffectBackground: NSViewRepresentable {
 
 /// HIG group title: subtle uppercase caption, System Settings style.
 public struct SettingsSectionHeader: View {
-    private let title: String
+    private let title: LocalizedStringKey
 
-    public init(_ title: String) {
+    /// Takes a `LocalizedStringKey`, not a `String`.
+    ///
+    /// `Text(someString)` is the *non-localizing* initializer, so every
+    /// section title in the app was unreachable for translation, and any
+    /// markup in one was printed literally rather than resolved.
+    public init(_ title: LocalizedStringKey) {
         self.title = title
     }
 

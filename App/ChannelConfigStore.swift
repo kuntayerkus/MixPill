@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import Observation
 
 /// The UI-side source of truth for every persisted audio preference.
 ///
@@ -9,8 +10,19 @@ import AppKit
 /// UserDefaults keys the pre-decomposition app used, so settings migrate
 /// seamlessly) and pushes each change to the core through the bridge.
 @MainActor
+@Observable
 public final class ChannelConfigStore {
     public static let shared = ChannelConfigStore()
+
+    /// Routing held in memory as well as in `UserDefaults`.
+    ///
+    /// Reading a preference straight from `UserDefaults` inside a view's
+    /// body is invisible to SwiftUI: the value changes, nothing re-renders,
+    /// and a checkmark stays on whatever was selected when the view was
+    /// built. Observation only tracks stored properties, so the routing
+    /// table has to be one.
+    private var routes: [String: String] = UserDefaults.standard
+        .dictionary(forKey: Constants.StorageKeys.routing) as? [String: String] ?? [:]
 
     /// Injected by `AppDelegate` once the bridge exists. Weak: the store
     /// is a process-wide singleton, the bridge is owned by the app object.
@@ -168,12 +180,27 @@ public final class ChannelConfigStore {
     /// The desired routing target id: "system-default" or a pair id.
     /// Echo-free fallback resolution happens in the core.
     public func routingPairID(for bundleID: String) -> String {
-        let routes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.routing) as? [String: String] ?? [:]
-        return routes[bundleID] ?? "system-default"
+        routes[bundleID] ?? "system-default"
     }
 
     public func setRouting(pairID: String, for bundleID: String) {
-        var routes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.routing) as? [String: String] ?? [:]
+        let previous = routes[bundleID]
+        guard previous != (pairID == "system-default" ? nil : pairID) else { return }
+
+        applyRouting(pairID: pairID, for: bundleID)
+
+        MixerUndoManager.shared.record(
+            bundleID: bundleID,
+            control: "routing",
+            label: "\(displayName(for: bundleID)) Output",
+            undo: { [weak self] in
+                self?.applyRouting(pairID: previous ?? "system-default", for: bundleID)
+            },
+            redo: { [weak self] in self?.applyRouting(pairID: pairID, for: bundleID) }
+        )
+    }
+
+    private func applyRouting(pairID: String, for bundleID: String) {
         if pairID == "system-default" {
             routes.removeValue(forKey: bundleID)
         } else {

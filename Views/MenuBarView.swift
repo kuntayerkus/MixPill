@@ -221,7 +221,13 @@ public struct MenuBarView: View {
                                 }
                                 .padding(.top, 4)
                             } label: {
-                                SettingsSectionHeader("^[\(idleIDs.count) Quiet App](inflect: true)")
+                                // Spelled out rather than using inflection
+                                // markup: `^[…](inflect: true)` only resolves
+                                // through a localized string, and when it
+                                // does not it is shown to the user verbatim.
+                                SettingsSectionHeader(
+                                    idleIDs.count == 1 ? "1 Quiet App" : "\(idleIDs.count) Quiet Apps"
+                                )
                             }
                             .disclosureGroupStyle(.automatic)
                             .padding(.top, playingIDs.isEmpty ? 0 : 6)

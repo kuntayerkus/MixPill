@@ -145,12 +145,10 @@ public struct AppVolumeRowView: View {
         }
         .onAppear {
             isDawDirect = ChannelConfigStore.shared.isDawDirectMode(for: app.id)
-            routePairID = ChannelConfigStore.shared.routingPairID(for: app.id)
         }
         .onChange(of: app.id) {
             // Rows are recycled across apps as the list changes.
             isDawDirect = ChannelConfigStore.shared.isDawDirectMode(for: app.id)
-            routePairID = ChannelConfigStore.shared.routingPairID(for: app.id)
         }
         .animation(Constants.Motion.spring, value: app.isMuted)
         .accessibilityElement(children: .contain)
