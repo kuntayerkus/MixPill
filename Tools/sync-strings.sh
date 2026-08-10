@@ -25,6 +25,15 @@ if [ ! -x "$tool" ]; then
     exit 1
 fi
 
+# Clear stale extraction output first.
+#
+# The sync collects every .stringsdata under the derived data directory,
+# and an incremental build leaves the files from previous builds in place.
+# A string that has since been reworded therefore stays in the catalog
+# forever on a developer's machine, while CI — which always starts clean —
+# produces a catalog without it. The two then disagree permanently.
+find "$derived" -name '*.stringsdata' -delete 2>/dev/null || true
+
 echo "Building so the compiler emits fresh .stringsdata…"
 # Signing is irrelevant to string extraction, and requiring it would make
 # this unusable anywhere without a certificate — CI included.
