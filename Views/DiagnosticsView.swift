@@ -8,6 +8,7 @@ import Darwin
 public struct DiagnosticsView: View {
     @Environment(CoreBridge.self) private var coreBridge
     @State private var snapshot = DiagnosticsSnapshot()
+    @State private var poll: Timer?
 
     private let cpuSampler = SystemCPUSampler()
 
@@ -31,7 +32,7 @@ public struct DiagnosticsView: View {
             } header: {
                 SettingsSectionHeader("CoreAudio")
             } footer: {
-                Text("Mixing runs in a single real-time render pass; latency is the hardware I/O block plus the tiny channel ring, nothing more.")
+                Text("Mixing runs in a single real-time render pass; latency is the hardware I/O block plus the tiny channel ring, nothing more. With nothing playing, MixPill stops its output unit so the audio device can sleep.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -39,10 +40,10 @@ public struct DiagnosticsView: View {
             Section {
                 metricRow("Active App Taps", value: "\(snapshot.activeTaps)")
                 metricRow(
-                    "Resampler",
-                    value: snapshot.activeConverters > 0
-                        ? "Active (\(snapshot.activeConverters) converter\(snapshot.activeConverters == 1 ? "" : "s"))"
-                        : "Idle (passthrough)"
+                    "Output Engines",
+                    value: snapshot.activeEngines == 0
+                        ? "Idle (hardware released)"
+                        : "\(snapshot.activeEngines) running"
                 )
                 metricRow("System CPU", value: snapshot.cpuPercent.map { String(format: "%.0f%%", $0) } ?? "—")
             } header: {
@@ -73,9 +74,25 @@ public struct DiagnosticsView: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear(perform: refresh)
-        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
+        // An explicitly owned timer, started and stopped with the view.
+        //
+        // `Timer.publish(…).autoconnect()` inside `onReceive` builds a new
+        // publisher on every body evaluation, and — because the Settings
+        // window is retained rather than released on close, and a macOS
+        // TabView keeps unselected tabs alive — it kept asking the audio
+        // service for diagnostics once a second long after anyone was
+        // looking at them.
+        .onAppear {
             refresh()
+            let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                Task { @MainActor in refresh() }
+            }
+            timer.tolerance = 0.2
+            poll = timer
+        }
+        .onDisappear {
+            poll?.invalidate()
+            poll = nil
         }
     }
 
@@ -120,7 +137,7 @@ public struct DiagnosticsView: View {
             snapshot.latencyMS = result.ioLatencyMS
             snapshot.ringCapacityFrames = result.ringCapacityFrames
             snapshot.activeTaps = result.activeTaps
-            snapshot.activeConverters = result.activeConverters
+            snapshot.activeEngines = result.activeEngines
             snapshot.hardwareSampleRate = result.hardwareSampleRate
             snapshot.lastRecoveryReason = result.lastRecoveryReason
             snapshot.lastRecoveryDate = result.lastRecoveryDate
@@ -134,7 +151,7 @@ private struct DiagnosticsSnapshot {
     var latencyMS: Double = 0
     var ringCapacityFrames = 0
     var activeTaps = 0
-    var activeConverters = 0
+    var activeEngines = 0
     var hardwareSampleRate: Double?
     var cpuPercent: Double?
     var lastRecoveryReason = "None"
@@ -151,11 +168,18 @@ private final class SystemCPUSampler {
             MemoryLayout<host_cpu_load_info_data_t>.size / MemoryLayout<integer_t>.size
         )
         var info = host_cpu_load_info_data_t()
+        let host = mach_host_self()
         let result = withUnsafeMutablePointer(to: &info) { infoPointer in
             infoPointer.withMemoryRebound(to: integer_t.self, capacity: Int(size)) { rawPointer in
-                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, rawPointer, &size)
+                host_statistics(host, HOST_CPU_LOAD_INFO, rawPointer, &size)
             }
         }
+        // `mach_host_self()` hands back a send right on every call. Without
+        // this the diagnostics panel leaked one per second for as long as
+        // it was open — `RealtimeThread` gets the same detail right for
+        // `mach_thread_self()`, this one was simply missed.
+        mach_port_deallocate(mach_task_self_, host)
+
         guard result == KERN_SUCCESS else { return nil }
 
         defer { previous = info }

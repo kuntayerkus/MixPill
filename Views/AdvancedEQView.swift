@@ -4,10 +4,18 @@ import AVFoundation
 public struct AdvancedEQView: View {
     let bundleID: String
 
+    @Environment(CoreBridge.self) private var coreBridge
+
     @State private var selectedPreset: EQPreset? = EQPreset.flat
     @State private var bands: [Float] = [0, 0, 0, 0, 0]
-    @State private var noiseGate: Float = 0
+    /// The gate threshold as the user sets it: dBFS, with the bottom of the
+    /// travel meaning off. The engine still stores linear amplitude — a raw
+    /// "0.07" told nobody anything about how loud the gate would open.
+    @State private var gateDB: Float = Self.gateOffDB
     @State private var nightMode = false
+
+    private static let gateOffDB: Float = -60
+    private static let gateMaxDB: Float = -18
 
     private let bandLabels = ["100 Hz", "400 Hz", "1 kHz", "4 kHz", "10 kHz"]
 
@@ -20,8 +28,9 @@ public struct AdvancedEQView: View {
             Text("5-Band Equalizer")
                 .font(.system(size: 15, weight: .semibold))
 
-            // What the five numbers below actually do to the sound.
-            EQCurveView(gains: bands)
+            // What the five numbers below actually do to the sound, drawn at
+            // the rate the engine is really filtering at.
+            EQCurveView(gains: bands, sampleRate: Float(coreBridge.canonicalSampleRate))
 
             // One-Tap Presets
             VStack(alignment: .leading, spacing: 6) {
@@ -88,24 +97,37 @@ public struct AdvancedEQView: View {
                             Slider(value: Binding(
                                 get: { bands[index] },
                                 set: { newValue in
-                                    bands[index] = newValue
-                                    selectedPreset = EQPreset.preset(matching: bands)
-                                    ChannelConfigStore.shared.setEQGains(bands, for: bundleID)
-                                    disableNightModeIfNeeded()
+                                    var updated = bands
+                                    updated[index] = newValue
+                                    commitBands(updated)
                                 }
                             ), in: -12.0...12.0)
                             .frame(width: 120)
                             .rotationEffect(.degrees(-90))
                             .frame(width: 20, height: 120)
                             .accessibilityLabel("EQ band \(bandLabels[index])")
-                            .accessibilityValue("\(Int(bands[index])) decibels")
+                            .accessibilityValue(String(format: "%.1f decibels", bands[index]))
                             .accessibilityHint("Adjusts the gain of the \(bandLabels[index]) band")
 
-                            Text("\(Int(bands[index])) dB")
-                                .font(.system(size: 11, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                                .frame(width: 44)
+                            // Tapping the readout returns that band to flat.
+                            // Truncating with `Int` used to report a 0.9 dB
+                            // boost as "0 dB", so a band could look untouched
+                            // while colouring the sound.
+                            Button {
+                                var updated = bands
+                                updated[index] = 0
+                                commitBands(updated)
+                            } label: {
+                                Text(String(format: "%.1f dB", bands[index]))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .monospacedDigit()
+                                    .foregroundStyle(abs(bands[index]) < 0.05 ? Color.secondary : Color.accentColor)
+                                    .frame(width: 48)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .help("Reset the \(bandLabels[index]) band to 0 dB")
+                            .accessibilityLabel("Reset \(bandLabels[index]) band")
 
                             Text(bandLabels[index])
                                 .font(.system(size: 10))
@@ -122,25 +144,31 @@ public struct AdvancedEQView: View {
                 HStack(spacing: Constants.UI.interElementSpacing) {
                     Image(systemName: "waveform")
                         .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(noiseGate > 0 ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(isGateOn ? Color.accentColor : Color.secondary)
                         .frame(width: 20)
-                        .animation(Constants.Motion.spring, value: noiseGate > 0)
+                        .animation(Constants.Motion.spring, value: isGateOn)
 
-                    Slider(value: $noiseGate, in: 0.0...0.2)
+                    Slider(value: $gateDB, in: Self.gateOffDB...Self.gateMaxDB)
                         .accessibilityLabel("Noise gate threshold")
-                        .accessibilityValue(noiseGate > 0 ? String(format: "%.2f", noiseGate) : "Off")
-                        .accessibilityHint("Silences audio below this level")
+                        .accessibilityValue(gateLabel)
+                        .accessibilityHint("Silences this app while it is quieter than the threshold")
 
-                    Text(noiseGate > 0 ? String(format: "%.2f", noiseGate) : "Off")
-                        .font(.system(size: 12, weight: .medium))
+                    Text(gateLabel)
+                        .font(.system(size: 11, weight: .medium))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
-                        .frame(width: 38, alignment: .trailing)
+                        .frame(width: 52, alignment: .trailing)
                 }
                 .frame(height: Constants.UI.controlHeight)
-                .onChange(of: noiseGate) {
-                    ChannelConfigStore.shared.setNoiseGate(threshold: noiseGate, for: bundleID)
+                .onChange(of: gateDB) {
+                    let threshold = isGateOn ? AudioScale.amplitude(fromDecibels: gateDB) : 0
+                    ChannelConfigStore.shared.setNoiseGate(threshold: threshold, for: bundleID)
                 }
+
+                Text("Anything quieter than this is silenced — useful for a noisy stream or a game's background hiss. All the way left is off.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(16)
@@ -149,9 +177,28 @@ public struct AdvancedEQView: View {
             let store = ChannelConfigStore.shared
             bands = store.eqGains(for: bundleID)
             selectedPreset = EQPreset.preset(matching: bands)
-            noiseGate = store.noiseGate(for: bundleID)
             nightMode = store.isNightMode(for: bundleID)
+
+            let threshold = store.noiseGate(for: bundleID)
+            gateDB = threshold > 0
+                ? max(Self.gateOffDB, min(Self.gateMaxDB, AudioScale.decibels(fromAmplitude: threshold)))
+                : Self.gateOffDB
         }
+    }
+
+    private var isGateOn: Bool { gateDB > Self.gateOffDB }
+
+    private var gateLabel: String {
+        isGateOn ? String(format: "%.0f dB", gateDB) : "Off"
+    }
+
+    /// One place that writes a band change, so the preset match, the store
+    /// and Night Mode stay in step however the change arrived.
+    private func commitBands(_ updated: [Float]) {
+        bands = updated
+        selectedPreset = EQPreset.preset(matching: updated)
+        ChannelConfigStore.shared.setEQGains(updated, for: bundleID)
+        disableNightModeIfNeeded()
     }
 
     // MARK: - One-Tap actions

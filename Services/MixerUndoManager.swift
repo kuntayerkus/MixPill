@@ -90,6 +90,34 @@ public final class MixerUndoManager {
         refresh()
     }
 
+    /// Records one change made up of many — applying a preset, routing
+    /// every app at once — as a single step.
+    ///
+    /// Without this, applying a preset over ten apps pushed ten separate
+    /// entries and ⌘Z unwound it one application at a time, which is not
+    /// what anybody means by undoing "apply preset".
+    public func recordTransaction(
+        label: String,
+        undo: @escaping () -> Void,
+        redo: @escaping () -> Void
+    ) {
+        undoStack.append(Entry(
+            bundleID: "",
+            label: label,
+            undo: undo,
+            redo: redo,
+            // A unique key, so a transaction never merges into a
+            // neighbouring one the way slider drags do.
+            coalescingKey: UUID().uuidString,
+            timestamp: Date()
+        ))
+        if undoStack.count > Self.depth {
+            undoStack.removeFirst(undoStack.count - Self.depth)
+        }
+        redoStack.removeAll()
+        refresh()
+    }
+
     // MARK: - Performing
 
     public func performUndo() {

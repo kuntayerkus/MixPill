@@ -63,7 +63,8 @@ public final class AppDiscoveryService {
                 audioLevel: existing?.audioLevel ?? 0.0,
                 peakLevel: existing?.peakLevel ?? 0.0,
                 isPlaying: info.isPlaying,
-                isCapturingInput: info.isCapturingInput
+                isCapturingInput: info.isCapturingInput,
+                isCaptured: info.isCaptured
             )
 
             if seen.insert(model.id).inserted {
@@ -71,6 +72,7 @@ public final class AppDiscoveryService {
             }
         }
 
+        let previousIDs = Set(availableApps.map(\.id))
         availableApps = newModels
 
         // Make sure the core holds every app's desired channel state, and
@@ -78,6 +80,18 @@ public final class AppDiscoveryService {
         let bundleIDs = newModels.map(\.id)
         bridge.knownBundleIDs = bundleIDs
         bridge.pushChannels(ChannelConfigStore.shared.channels(for: bundleIDs))
+
+        // Retire the strips for apps that have gone.
+        //
+        // `removeChannel` existed on both sides of the XPC contract and was
+        // never called, so the core accumulated a channel strip for every
+        // application that had played audio since it started — each one a
+        // ring buffer and a DSP object still being read, filtered and summed
+        // in the render callback long after the app had quit. The cost grew
+        // with the length of the session, not with what was playing.
+        for bundleID in previousIDs.subtracting(bundleIDs) {
+            bridge.removeChannel(bundleID)
+        }
 
         SceneAutomationManager.shared.evaluateLaunchRules(apps: availableApps)
     }
@@ -100,5 +114,11 @@ public final class AppDiscoveryService {
         let store = ChannelConfigStore.shared
         availableApps[index].volume = store.volume(for: bundleID)
         availableApps[index].isMuted = store.isMuted(for: bundleID)
+    }
+
+    public func refreshModelsFromStore(for bundleIDs: [String]) {
+        for bundleID in bundleIDs {
+            refreshModelFromStore(for: bundleID)
+        }
     }
 }

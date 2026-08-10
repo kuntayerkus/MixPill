@@ -17,14 +17,19 @@ public struct AutomationRulesView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Smart Ducking")
                             .font(.system(size: 13, weight: .medium))
-                        Text("When a VoIP app (Zoom, Teams, Discord, Webex, Slack) is actively producing audio, all other apps are smoothly reduced to 20% volume and restored when the call audio stops. Ducking runs inside the MixPillCore service, so it keeps working even when the popover is closed.")
+                        // Describes what the engine actually keys on. There
+                        // is no app list any more: DuckingController watches
+                        // which process is holding the microphone, so
+                        // FaceTime, a meeting in a browser tab and whatever
+                        // ships next all work without being named anywhere.
+                        Text("While an app is holding your microphone and producing sound, everything else dips smoothly to 20% and comes back when the talking stops. There's no list of apps to keep up to date — FaceTime, meetings in a browser tab and anything released tomorrow all count. Ducking runs inside the MixPillCore service, so it keeps working with the popover closed.")
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .toggleStyle(.switch)
-                .accessibilityHint("Automatically lowers other apps while VoIP audio is detected")
+                .accessibilityHint("Automatically lowers other apps while somebody is speaking on a call")
             } header: {
                 SettingsSectionHeader("Ducking Rules")
             }

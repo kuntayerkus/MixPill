@@ -18,6 +18,9 @@ public final class CoreBridge: NSObject {
     ]
     public private(set) var devices: [OutputDeviceDTO] = []
     public private(set) var defaultDeviceUID: String?
+    /// The rate the mixer is running at, so the EQ curve can be drawn from
+    /// the same design the engine applies.
+    public private(set) var canonicalSampleRate: Double = CoreAudioFormat.baseSampleRate
 
     /// Wired by `AppDiscoveryService`.
     var onAppsChanged: ((_ apps: [CoreAppInfo]) -> Void)?
@@ -28,6 +31,11 @@ public final class CoreBridge: NSObject {
 
     private var connection: NSXPCConnection?
     private var reconnectScheduled = false
+
+    /// What the core was last told about each channel, so unchanged state
+    /// is not resent. Cleared on reconnect, because a fresh service knows
+    /// nothing.
+    private var lastSentChannels: [String: ChannelConfig] = [:]
 
     /// Applications the UI knows about, so a reconnect can resend every
     /// channel's desired state in one snapshot instead of relying on the
@@ -54,12 +62,14 @@ public final class CoreBridge: NSObject {
             Task { @MainActor in
                 self?.connection = nil
                 self?.isConnected = false
+                self?.lastSentChannels.removeAll()
                 self?.scheduleReconnect()
             }
         }
         newConnection.interruptionHandler = { [weak self] in
             Task { @MainActor in
                 self?.isConnected = false
+                self?.lastSentChannels.removeAll()
                 self?.pushConfiguration()
             }
         }
@@ -103,13 +113,17 @@ public final class CoreBridge: NSObject {
     public func pushConfiguration() {
         guard let control else { return }
         let store = ChannelConfigStore.shared
+        let channels = store.channels(for: knownBundleIDs)
         let configuration = EngineConfiguration(
-            masterVolume: store.masterVolume,
+            masterVolume: store.effectiveMasterVolume,
             lowLatencyEnabled: store.lowLatencyEnabled,
             duckingEnabled: store.duckingEnabled,
-            channels: ChannelConfigStore.shared.channels(for: knownBundleIDs)
+            channels: channels
         )
         guard let data = MixPillCoder.encode(configuration) else { return }
+        // A full snapshot re-establishes what the core knows, so the
+        // change-tracking baseline starts again from here.
+        lastSentChannels = Dictionary(uniqueKeysWithValues: channels.map { ($0.bundleID, $0) })
         control.applyConfiguration(data) { _ in }
     }
 
@@ -117,16 +131,28 @@ public final class CoreBridge: NSObject {
     /// core knows every discovered app's config as well.
     public func pushChannel(_ config: ChannelConfig) {
         guard let control, let data = MixPillCoder.encode(config) else { return }
+        lastSentChannels[config.bundleID] = config
         control.applyChannel(data)
     }
 
+    /// Sends every channel whose desired state actually moved, in one
+    /// message.
+    ///
+    /// This is called on every discovery event — which fires whenever any
+    /// application starts or stops playing — so it used to produce one XPC
+    /// round trip per known app for a change that usually affected none of
+    /// them.
     public func pushChannels(_ configs: [ChannelConfig]) {
-        for config in configs {
-            pushChannel(config)
+        let changed = configs.filter { lastSentChannels[$0.bundleID] != $0 }
+        guard !changed.isEmpty, let control, let data = MixPillCoder.encode(changed) else { return }
+        for config in changed {
+            lastSentChannels[config.bundleID] = config
         }
+        control.applyChannels(data)
     }
 
     public func removeChannel(_ bundleID: String) {
+        lastSentChannels.removeValue(forKey: bundleID)
         control?.removeChannel(bundleID)
     }
 
@@ -212,6 +238,7 @@ extension CoreBridge: MixPillCoreEventsProtocol {
             self.routingColumns = payload.columns
             self.devices = payload.devices
             self.defaultDeviceUID = payload.defaultDeviceUID
+            self.canonicalSampleRate = payload.canonicalSampleRate
         }
     }
 

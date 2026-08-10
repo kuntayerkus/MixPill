@@ -33,16 +33,6 @@ public final class PermissionManager {
         hasAccessibilityPermission = AXIsProcessTrusted()
     }
 
-    /// Prompts for Accessibility trust. macOS shows its own dialog with a
-    /// button through to the right Settings pane.
-    public func requestAccessibilityPermission() {
-        // The constant is a global `var` in the C headers, so Swift 6 will
-        // not let it be read across isolation. Its value is a stable,
-        // documented key.
-        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        hasAccessibilityPermission = AXIsProcessTrustedWithOptions(options)
-    }
-
     /// Opens System Settings › Privacy & Security › Accessibility.
     public func openAccessibilitySettings() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }

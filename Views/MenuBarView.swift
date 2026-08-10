@@ -8,8 +8,15 @@ public struct MenuBarView: View {
 
     @State private var searchText = ""
     @State private var masterVolume: Float = ChannelConfigStore.shared.masterVolume
+    @State private var isMasterMuted = ChannelConfigStore.shared.isMasterMuted
     @FocusState private var searchFocused: Bool
+    @FocusState private var listFocused: Bool
     @State private var showIdleApps = false
+    /// Row the keyboard is on. Nil until someone actually uses the keyboard,
+    /// so a mouse user never sees a selection they did not ask for.
+    @State private var selectedID: String?
+    @State private var isNamingPreset = false
+    @State private var presetName = ""
 
     private var playingIDs: Set<String> {
         Set(discoveryService.availableApps.filter(\.isPlaying).map(\.id))
@@ -21,6 +28,15 @@ public struct MenuBarView: View {
 
     private func matchesSearch(_ app: AudioAppModel) -> Bool {
         searchText.isEmpty || app.name.localizedCaseInsensitiveContains(searchText)
+    }
+
+    /// Everything currently on screen, in the order it is drawn. Keyboard
+    /// navigation walks this, so it can never disagree with what the eye
+    /// is following.
+    private var visibleApps: [AudioAppModel] {
+        let playing = discoveryService.availableApps.filter { playingIDs.contains($0.id) && matchesSearch($0) }
+        guard showIdleApps else { return playing }
+        return playing + discoveryService.availableApps.filter { idleIDs.contains($0.id) && matchesSearch($0) }
     }
 
     public init() {}
@@ -62,9 +78,18 @@ public struct MenuBarView: View {
             // The popover opens ready to type, so filtering a long list is
             // one keystroke rather than a click plus a keystroke.
             searchFocused = true
+            masterVolume = ChannelConfigStore.shared.masterVolume
+            isMasterMuted = ChannelConfigStore.shared.isMasterMuted
         }
         .onDisappear {
             coreBridge.setMeterDisplayActive(false)
+        }
+        .alert("Save Preset", isPresented: $isNamingPreset) {
+            TextField("Preset name", text: $presetName)
+            Button("Save") { savePreset() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Captures every app's volume, mute, EQ, noise gate and output.")
         }
     }
 
@@ -160,6 +185,12 @@ public struct MenuBarView: View {
                 .textFieldStyle(.roundedBorder)
                 .focused($searchFocused)
                 .accessibilityLabel("Search applications")
+                .onSubmit {
+                    // Enter hands over to the list, so finding an app and
+                    // then changing it never needs the mouse.
+                    selectedID = visibleApps.first?.id
+                    listFocused = true
+                }
                 .onChange(of: searchText) {
                     // Searching implies looking for something not in front
                     // of you, so open the quiet section rather than hiding
@@ -167,77 +198,128 @@ public struct MenuBarView: View {
                     if !searchText.isEmpty { showIdleApps = true }
                 }
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: Constants.UI.interElementSpacing) {
-                    if discoveryService.availableApps.isEmpty {
-                        // An empty state should say what to do next, not
-                        // just report that nothing is here.
-                        VStack(spacing: 8) {
-                            Image(systemName: "waveform")
-                                .symbolRenderingMode(.hierarchical)
-                                .font(.system(size: 26))
-                                .foregroundStyle(.tertiary)
-                            Text("Waiting for audio")
-                                .font(.system(size: 13, weight: .medium))
-                            Text("Play something in any app and it appears here with its own volume.")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 22)
-                        .padding(.horizontal, 8)
-                    } else {
-                        // Everything currently making sound, first and
-                        // unadorned — that is what the popover was opened
-                        // for.
-                        if !playingIDs.isEmpty {
-                            SettingsSectionHeader("Playing Now")
-                        }
-                        ForEach($discovery.availableApps) { $app in
-                            if playingIDs.contains(app.id) && matchesSearch(app) {
-                                AppVolumeRowView(app: $app) { volume, isMuted in
-                                    ChannelConfigStore.shared.setVolume(volume, isMuted: isMuted, for: app.id)
+            ScrollViewReader { scroller in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Constants.UI.interElementSpacing) {
+                        if discoveryService.availableApps.isEmpty {
+                            // An empty list means one of two very different
+                            // things, and they need different words. Either
+                            // nothing is playing yet, or the audio engine
+                            // never came up — in which case "Waiting for
+                            // audio" is a reassurance that happens to be
+                            // false.
+                            emptyState
+                        } else {
+                            // Everything currently making sound, first and
+                            // unadorned — that is what the popover was
+                            // opened for.
+                            if !playingIDs.isEmpty {
+                                SettingsSectionHeader("Playing Now")
+                            }
+                            ForEach($discovery.availableApps) { $app in
+                                if playingIDs.contains(app.id) && matchesSearch(app) {
+                                    row(for: $app)
                                 }
                             }
-                        }
 
-                        // Apps that have not made a sound recently are still
-                        // reachable — their settings persist and matter —
-                        // but they are folded away so a day's worth of
-                        // launched apps does not bury the two that are
-                        // playing.
-                        if !idleIDs.isEmpty {
-                            DisclosureGroup(isExpanded: $showIdleApps) {
-                                VStack(spacing: Constants.UI.interElementSpacing) {
-                                    ForEach($discovery.availableApps) { $app in
-                                        if idleIDs.contains(app.id) && matchesSearch(app) {
-                                            AppVolumeRowView(app: $app) { volume, isMuted in
-                                                ChannelConfigStore.shared.setVolume(volume, isMuted: isMuted, for: app.id)
+                            // Apps that have not made a sound recently are
+                            // still reachable — their settings persist and
+                            // matter — but they are folded away so a day's
+                            // worth of launched apps does not bury the two
+                            // that are playing.
+                            if !idleIDs.isEmpty {
+                                DisclosureGroup(isExpanded: $showIdleApps) {
+                                    VStack(spacing: Constants.UI.interElementSpacing) {
+                                        ForEach($discovery.availableApps) { $app in
+                                            if idleIDs.contains(app.id) && matchesSearch(app) {
+                                                row(for: $app)
                                             }
                                         }
                                     }
+                                    .padding(.top, 4)
+                                } label: {
+                                    // Spelled out rather than using
+                                    // inflection markup: `^[…](inflect:
+                                    // true)` only resolves through a
+                                    // localized string, and when it does not
+                                    // it is shown to the user verbatim.
+                                    SettingsSectionHeader(
+                                        idleIDs.count == 1 ? "1 Quiet App" : "\(idleIDs.count) Quiet Apps"
+                                    )
                                 }
-                                .padding(.top, 4)
-                            } label: {
-                                // Spelled out rather than using inflection
-                                // markup: `^[…](inflect: true)` only resolves
-                                // through a localized string, and when it
-                                // does not it is shown to the user verbatim.
-                                SettingsSectionHeader(
-                                    idleIDs.count == 1 ? "1 Quiet App" : "\(idleIDs.count) Quiet Apps"
-                                )
+                                .disclosureGroupStyle(.automatic)
+                                .padding(.top, playingIDs.isEmpty ? 0 : 6)
                             }
-                            .disclosureGroupStyle(.automatic)
-                            .padding(.top, playingIDs.isEmpty ? 0 : 6)
                         }
                     }
                 }
+                .frame(maxHeight: listHeight)
+                .focusable(!discoveryService.availableApps.isEmpty)
+                .focused($listFocused)
+                .onMoveCommand { direction in
+                    handleMove(direction, scroller: scroller)
+                }
+                .onKeyPress("m") { toggleMuteOnSelection() }
+                .onKeyPress("s") { toggleSoloOnSelection() }
+                .accessibilityLabel("Application mixer")
             }
-            .frame(maxHeight: 320)
         }
         .padding(Constants.UI.edgePadding)
+    }
+
+    /// Grows with the list instead of pinning every window to 320 pt, and
+    /// stops well short of the screen so the popover never becomes a wall.
+    private var listHeight: CGFloat {
+        let rows = max(1, visibleApps.count) + (idleIDs.isEmpty ? 0 : 1)
+        return min(max(150, CGFloat(rows) * 78), 460)
+    }
+
+    @ViewBuilder
+    private func row(for app: Binding<AudioAppModel>) -> some View {
+        AppVolumeRowView(app: app) { volume, isMuted in
+            ChannelConfigStore.shared.setVolume(volume, isMuted: isMuted, for: app.wrappedValue.id)
+        }
+        .id(app.wrappedValue.id)
+        .overlay {
+            // Only drawn once the keyboard is actually in use.
+            if listFocused && selectedID == app.wrappedValue.id {
+                RoundedRectangle(cornerRadius: Constants.UI.cornerRadius)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    /// Empty list, told apart by whether the core is actually answering.
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: coreBridge.isConnected ? "waveform" : "bolt.horizontal.circle")
+                .symbolRenderingMode(.hierarchical)
+                .font(.system(size: 26))
+                .foregroundStyle(coreBridge.isConnected ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Color.orange))
+
+            Text(coreBridge.isConnected ? "Waiting for audio" : "Can't reach the audio engine")
+                .font(.system(size: 13, weight: .medium))
+
+            Text(coreBridge.isConnected
+                 ? "Play something in any app and it appears here with its own volume."
+                 : "MixPill's audio service isn't answering. Reconnecting — if this keeps up, open Settings › Diagnostics and reset the engine.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !coreBridge.isConnected {
+                Button("Open Diagnostics") { openSettings() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+        .padding(.horizontal, 8)
+        .animation(Constants.Motion.spring, value: coreBridge.isConnected)
     }
 
     // MARK: - Footer
@@ -248,23 +330,36 @@ public struct MenuBarView: View {
                 SettingsSectionHeader("Master Volume")
 
                 HStack(spacing: Constants.UI.interElementSpacing) {
-                    Image(systemName: masterVolumeIconName)
-                        .symbolRenderingMode(.hierarchical)
-                        .contentTransition(.symbolEffect(.replace))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20)
-                        .animation(Constants.Motion.spring, value: masterVolumeIconName)
+                    Button(action: toggleMasterMute) {
+                        Image(systemName: isMasterMuted ? "speaker.slash.fill" : masterVolumeIconName)
+                            .symbolRenderingMode(.hierarchical)
+                            .contentTransition(.symbolEffect(.replace))
+                            .foregroundStyle(isMasterMuted ? Color.red : Color.secondary)
+                            .frame(width: 20, height: 20)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .animation(Constants.Motion.spring, value: isMasterMuted)
+                    .help(isMasterMuted ? "Unmute everything" : "Mute everything")
+                    .accessibilityLabel(isMasterMuted ? "Unmute MixPill" : "Mute MixPill")
 
-                    Slider(value: $masterVolume, in: 0.0...1.0)
-                        .accessibilityLabel("Master volume")
-                        .accessibilityValue("\(Int(masterVolume * 100)) percent")
-                        .accessibilityHint("Adjusts the overall output volume of MixPill")
+                    // Same dB taper as the channel faders, but without the
+                    // boost region: the master sits after the sum, so
+                    // pushing it above unity only feeds the limiter.
+                    Slider(value: Binding(
+                        get: { AudioScale.position(forGain: masterVolume, allowBoost: false) },
+                        set: { masterVolume = AudioScale.gain(forPosition: $0, allowBoost: false) }
+                    ), in: 0.0...1.0)
+                    .disabled(isMasterMuted)
+                    .accessibilityLabel("Master volume")
+                    .accessibilityValue("\(AudioScale.faderLabel(forGain: masterVolume)), \(AudioScale.percentOfUnity(forGain: masterVolume)) percent")
+                    .accessibilityHint("Adjusts the overall output volume of MixPill")
 
-                    Text("\(Int(masterVolume * 100))%")
-                        .font(.system(size: 12, weight: .medium))
+                    Text(isMasterMuted ? "Muted" : AudioScale.faderLabel(forGain: masterVolume))
+                        .font(.system(size: 11, weight: .medium))
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .frame(width: 38, alignment: .trailing)
+                        .foregroundStyle(isMasterMuted ? Color.red : Color.secondary)
+                        .frame(width: 52, alignment: .trailing)
                 }
                 .frame(height: Constants.UI.controlHeight)
             }
@@ -274,26 +369,34 @@ public struct MenuBarView: View {
 
             HStack(spacing: Constants.UI.interElementSpacing) {
                 Button {
-                    withAnimation(Constants.Motion.spring) {
-                        presetManager.savePreset(
-                            name: "Preset \(presetManager.presets.count + 1)",
-                            apps: discoveryService.availableApps
-                        )
-                    }
+                    presetName = presetManager.suggestedName()
+                    isNamingPreset = true
                 } label: {
                     Label("Save Preset", systemImage: "square.and.arrow.down")
                         .symbolRenderingMode(.hierarchical)
                         .font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(.bordered)
-                .help("Save the current volume and mute state of all apps")
+                .help("Save every app's volume, mute, EQ, noise gate and output under a name")
 
                 Spacer()
 
                 Menu {
+                    let activeID = presetManager.activePresetID()
                     ForEach(presetManager.presets) { preset in
-                        Button(preset.name) {
-                            presetManager.applyPreset(id: preset.id, to: discoveryService)
+                        Button {
+                            withAnimation(Constants.Motion.spring) {
+                                presetManager.applyPreset(id: preset.id, to: discoveryService)
+                            }
+                        } label: {
+                            // A tick on the one already in effect: without
+                            // it a list of saved presets says nothing about
+                            // where you currently are.
+                            if preset.id == activeID {
+                                Label(preset.name, systemImage: "checkmark")
+                            } else {
+                                Text(preset.name)
+                            }
                         }
                     }
                 } label: {
@@ -304,6 +407,28 @@ public struct MenuBarView: View {
                 .buttonStyle(.bordered)
                 .disabled(presetManager.presets.isEmpty)
                 .help("Restore a saved preset")
+            }
+
+            // Undo used to build a label for every change and show it
+            // nowhere; the app has no menu bar, so ⌘Z was undiscoverable.
+            if MixerUndoManager.shared.canUndo, let label = MixerUndoManager.shared.undoLabel {
+                Button(action: MixerUndoManager.shared.performUndo) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text("Undo \(label)")
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                        Text("⌘Z")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.quaternary)
+                    }
+                    .foregroundStyle(.tertiary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+                .transition(.opacity)
             }
 
             if GlobalHotkeyManager.shared.isEnabled && GlobalHotkeyManager.shared.isAccessibilityTrusted {
@@ -320,16 +445,74 @@ public struct MenuBarView: View {
             }
         }
         .padding(Constants.UI.edgePadding)
+        .animation(Constants.Motion.spring, value: MixerUndoManager.shared.canUndo)
     }
 
     private var masterVolumeIconName: String {
-        if masterVolume == 0 { return "speaker.slash.fill" }
-        if masterVolume < 0.33 { return "speaker.wave.1.fill" }
-        if masterVolume < 0.66 { return "speaker.wave.2.fill" }
+        let position = AudioScale.position(forGain: masterVolume, allowBoost: false)
+        if position <= 0 { return "speaker.slash.fill" }
+        if position < 0.4 { return "speaker.wave.1.fill" }
+        if position < 0.75 { return "speaker.wave.2.fill" }
         return "speaker.wave.3.fill"
     }
 
+    // MARK: - Keyboard navigation
+
+    private func handleMove(_ direction: MoveCommandDirection, scroller: ScrollViewProxy) {
+        let apps = visibleApps
+        guard !apps.isEmpty else { return }
+
+        switch direction {
+        case .up, .down:
+            let step = direction == .down ? 1 : -1
+            let current = apps.firstIndex { $0.id == selectedID } ?? (direction == .down ? -1 : apps.count)
+            let next = min(max(current + step, 0), apps.count - 1)
+            selectedID = apps[next].id
+            withAnimation(Constants.Motion.spring) {
+                scroller.scrollTo(apps[next].id, anchor: .center)
+            }
+
+        case .left, .right:
+            // A notch of fader travel, so a step feels the same wherever
+            // the fader happens to be sitting.
+            guard let selectedID else { return }
+            let store = ChannelConfigStore.shared
+            let updated = store.adjustVolume(by: direction == .right ? 0.03 : -0.03, for: selectedID)
+            discoveryService.refreshModelFromStore(for: selectedID)
+            _ = updated
+
+        @unknown default:
+            break
+        }
+    }
+
+    private func toggleMuteOnSelection() -> KeyPress.Result {
+        guard let selectedID else { return .ignored }
+        ChannelConfigStore.shared.toggleMute(for: selectedID)
+        discoveryService.refreshModelFromStore(for: selectedID)
+        return .handled
+    }
+
+    private func toggleSoloOnSelection() -> KeyPress.Result {
+        guard let selectedID else { return .ignored }
+        ChannelConfigStore.shared.toggleSolo(for: selectedID)
+        return .handled
+    }
+
     // MARK: - Actions
+
+    private func savePreset() {
+        let trimmed = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed.isEmpty ? presetManager.suggestedName() : trimmed
+        _ = withAnimation(Constants.Motion.spring) {
+            presetManager.savePreset(name: name, apps: discoveryService.availableApps)
+        }
+    }
+
+    private func toggleMasterMute() {
+        isMasterMuted.toggle()
+        ChannelConfigStore.shared.setMasterMuted(isMasterMuted)
+    }
 
     private func openSettings() {
         NSApp.sendAction(#selector(AppDelegate.openSettingsWindow), to: nil, from: nil)

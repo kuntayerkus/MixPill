@@ -14,8 +14,12 @@ public struct AudioAppModel: Identifiable, Hashable, @unchecked Sendable {
     /// Holding the microphone right now — shown so it is obvious why other
     /// apps just ducked.
     public var isCapturingInput: Bool
+    /// Whether the engine actually holds a tap on this app. When false the
+    /// channel's controls have no effect on the sound, and the row says so
+    /// instead of offering a fader that moves for nothing.
+    public var isCaptured: Bool
 
-    public init(id: String, name: String, icon: NSImage?, volume: Float = Constants.Audio.defaultVolume, isMuted: Bool = Constants.Audio.defaultMuted, audioLevel: Float = 0.0, peakLevel: Float = 0.0, isPlaying: Bool = false, isCapturingInput: Bool = false) {
+    public init(id: String, name: String, icon: NSImage?, volume: Float = Constants.Audio.defaultVolume, isMuted: Bool = Constants.Audio.defaultMuted, audioLevel: Float = 0.0, peakLevel: Float = 0.0, isPlaying: Bool = false, isCapturingInput: Bool = false, isCaptured: Bool = true) {
         self.id = id
         self.name = name
         self.icon = icon
@@ -25,6 +29,7 @@ public struct AudioAppModel: Identifiable, Hashable, @unchecked Sendable {
         self.peakLevel = peakLevel
         self.isPlaying = isPlaying
         self.isCapturingInput = isCapturingInput
+        self.isCaptured = isCaptured
     }
     
     public func hash(into hasher: inout Hasher) {

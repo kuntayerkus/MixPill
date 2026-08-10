@@ -26,6 +26,15 @@ final class CoreResilienceEngine: @unchecked Sendable {
     private var recoveryInFlight = false
     private var lastRecoveryReasonValue = "None"
     private var lastRecoveryDateValue: Date?
+    private var watchdog: DispatchSourceTimer?
+
+    /// How often the watchdog checks that the output units are still alive.
+    ///
+    /// `LowLatencyMixerEngine.auditEngines()` existed and was never called,
+    /// while the daemon-restart path logged "watchdog will keep trying" —
+    /// so a `coreaudiod` crash that outlasted the eight retries left the
+    /// engine down permanently with a message claiming otherwise.
+    private static let watchdogInterval: Double = 15
 
     /// Supplies the current discovery snapshot for tap re-arming.
     var currentProcessesProvider: () -> [AudioProcessRegistry.AudioProcess] = { [] }
@@ -80,6 +89,27 @@ final class CoreResilienceEngine: @unchecked Sendable {
             AudioResamplerService.shared.matchHardwareSampleRate(rate)
         }
         registry.startListening()
+        startWatchdog()
+    }
+
+    /// Periodically confirms the mixer still has running output units for
+    /// the strips it holds, and rebuilds if not. Cheap: one queue hop and a
+    /// dictionary walk, and it is the only thing that recovers a stall the
+    /// HAL never told us about.
+    private func startWatchdog() {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + Self.watchdogInterval,
+                       repeating: Self.watchdogInterval,
+                       leeway: .seconds(2))
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            if !self.mixer.auditEngines() {
+                self.recordRecovery("Engine watchdog")
+                self.onRecovery?(self.lastRecoveryReason, self.lastRecoveryDate ?? .now)
+            }
+        }
+        timer.resume()
+        watchdog = timer
     }
 
     // MARK: - Sleep / wake

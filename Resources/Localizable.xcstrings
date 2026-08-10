@@ -1,537 +1,2056 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-    "%@" : {
-
-    },
-    "%@ audio controls" : {
-
-    },
-    "%@ is using the microphone" : {
-
-    },
-    "%@ plays on %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ plays on %2$@"
+  "sourceLanguage": "en",
+  "strings": {
+    "%@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
           }
         }
       }
     },
-    "%@ volume" : {
-
-    },
-    "%@: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: %2$@"
+    "%@ audio controls": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ses denetimleri"
           }
         }
       }
     },
-    "%lld Quiet Apps" : {
-
-    },
-    "%lld dB" : {
-
-    },
-    "%lld decibels" : {
-
-    },
-    "%lld percent" : {
-
-    },
-    "%lld%%" : {
-
-    },
-    "0 to 100 percent." : {
-
-    },
-    "1 Quiet App" : {
-
-    },
-    "100% On-Device & Private" : {
-
-    },
-    "5-Band Equalizer" : {
-
-    },
-    "Accessibility access needed" : {
-
-    },
-    "Add Rule" : {
-
-    },
-    "Add automation rule" : {
-
-    },
-    "Adjusts the gain of the %@ band" : {
-
-    },
-    "Adjusts the output volume of %@" : {
-
-    },
-    "Adjusts the overall output volume of MixPill" : {
-
-    },
-    "Application" : {
-
-    },
-    "Applies a preset and Smart Ducking setting while this Focus is on." : {
-
-    },
-    "Applies the selected preset when %@ launches." : {
-
-    },
-    "Apply ${preset}" : {
-
-    },
-    "Apply MixPill Preset" : {
-
-    },
-    "Audio Performance" : {
-
-    },
-    "Automatically lowers other apps while VoIP audio is detected" : {
-
-    },
-    "Automation" : {
-
-    },
-    "Back" : {
-
-    },
-    "Bands" : {
-
-    },
-    "Blocks background applications from stealing keyboard focus" : {
-
-    },
-    "Capture & System" : {
-
-    },
-    "Check Now" : {
-
-    },
-    "Check for Updates Automatically" : {
-
-    },
-    "Choose the output device for each application. “System Default” follows the macOS default output." : {
-
-    },
-    "Continue" : {
-
-    },
-    "CoreAudio" : {
-
-    },
-    "Create a rule that applies a preset when an app opens" : {
-
-    },
-    "Custom" : {
-
-    },
-    "DAW Direct for %@" : {
-
-    },
-    "DAW Direct is off, so this app is mixed like any other. Turn it on to hand the app back its own output path." : {
-
-    },
-    "DAW Direct is on: MixPill leaves this app completely alone, so its own outputs, routing and monitoring latency are untouched." : {
-
-    },
-    "Delete preset" : {
-
-    },
-    "Delete preset %@" : {
-
-    },
-    "Delete rule" : {
-
-    },
-    "Delete rule %@" : {
-
-    },
-    "Diagnostics" : {
-
-    },
-    "Disable %@" : {
-
-    },
-    "Ducking Rules" : {
-
-    },
-    "EQ band %@" : {
-
-    },
-    "Enable %@" : {
-
-    },
-    "Enable Global Hotkeys & Quick Gestures" : {
-
-    },
-    "Enabled" : {
-
-    },
-    "Equalizer & Noise Gate" : {
-
-    },
-    "Equalizer for %@" : {
-
-    },
-    "Equalizer preset" : {
-
-    },
-    "Focus Shield" : {
-
-    },
-    "Focus Shield is off: click to block background apps from stealing keyboard focus" : {
-
-    },
-    "Focus Shield is on: background apps cannot steal keyboard focus" : {
-
-    },
-    "General" : {
-
-    },
-    "Global Hotkeys" : {
-
-    },
-    "Idle" : {
-
-    },
-    "Individual volume control for every app on your Mac — right from the menu bar." : {
-
-    },
-    "Input App" : {
-
-    },
-    "Launch MixPill automatically when you log into your Mac." : {
-
-    },
-    "Launch at Login" : {
-
-    },
-    "Lets you control volumes from any app using keyboard and scroll shortcuts" : {
-
-    },
-    "Listening for Audio" : {
-
-    },
-    "Load Preset" : {
-
-    },
-    "Looks once a day and only interrupts you when there is something to install." : {
-
-    },
-    "Master Volume" : {
-
-    },
-    "Master volume" : {
-
-    },
-    "MixPill" : {
-
-    },
-    "MixPill Settings… (⌘,)" : {
-
-    },
-    "MixPill is already mixing. Open it from the menu bar whenever you want to change something." : {
-
-    },
-    "MixPill is distributed directly rather than through the App Store, so it updates itself. Only a request for the update feed leaves your Mac — no usage data, ever." : {
-
-    },
-    "MixPill never asks for Accessibility access unless you turn hotkeys on." : {
-
-    },
-    "MixPill picks up an app as soon as it plays something. Start some audio and it will appear here." : {
-
-    },
-    "Mixing runs in a single real-time render pass; latency is the hardware I/O block plus the tiny channel ring, nothing more." : {
-
-    },
-    "Mute" : {
-
-    },
-    "Mute %@" : {
-
-    },
-    "Mute or Unmute App" : {
-
-    },
-    "Muted" : {
-
-    },
-    "No Automation Rules" : {
-
-    },
-    "No Eligible Apps" : {
-
-    },
-    "No Presets Saved" : {
-
-    },
-    "No apps available to route." : {
-
-    },
-    "No apps playing yet" : {
-
-    },
-    "Noise Gate" : {
-
-    },
-    "Noise gate threshold" : {
-
-    },
-    "None" : {
-
-    },
-    "On a call — other apps duck while this one is speaking" : {
-
-    },
-    "One-Tap Presets" : {
-
-    },
-    "Open System Settings" : {
-
-    },
-    "Opens the 5-band equalizer and noise gate" : {
-
-    },
-    "Opens the MixPill settings window" : {
-
-    },
-    "Output" : {
-
-    },
-    "Output device for %@" : {
-
-    },
-    "Output: %@" : {
-
-    },
-    "Pins %@ to a specific audio output device or channel pair" : {
-
-    },
-    "Play something in any app and it appears here with its own volume." : {
-
-    },
-    "Playing" : {
-
-    },
-    "Playing Now" : {
-
-    },
-    "Preset" : {
-
-    },
-    "Preset Switching" : {
-
-    },
-    "Preset for %@" : {
-
-    },
-    "Presets" : {
-
-    },
-    "Quit MixPill" : {
-
-    },
-    "Quit MixPill (⌘Q)" : {
-
-    },
-    "Rebuilds every output engine and re-applies routing without restarting the app" : {
-
-    },
-    "Rebuilds the entire output graph and re-arms captures. Takes under a second; no app restart needed." : {
-
-    },
-    "Recovery" : {
-
-    },
-    "Reduces audio delay for live monitoring and lip-synced video at slightly higher CPU usage" : {
-
-    },
-    "Reset Audio Engine" : {
-
-    },
-    "Restore a saved preset" : {
-
-    },
-    "Restores audio for %@" : {
-
-    },
-    "Restores every app's saved volume and mute state from one of your presets." : {
-
-    },
-    "Route %@ to %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Route %1$@ to %2$@"
+    "%@ could not be captured; MixPill is not controlling it": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ yakalanamadı; MixPill bu uygulamayı denetlemiyor"
           }
         }
       }
     },
-    "Route All" : {
-
+    "%@ is using the microphone": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ mikrofonu kullanıyor"
+          }
+        }
+      }
     },
-    "Route all apps to %@" : {
-
+    "%@ plays directly; MixPill is not controlling it": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ doğrudan çalıyor; MixPill bu uygulamayı denetlemiyor"
+          }
+        }
+      }
     },
-    "Routing" : {
-
+    "%@ plays on %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ plays on %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ şurada çalıyor: %@"
+          }
+        }
+      }
     },
-    "Routing Matrix" : {
-
+    "%@ volume": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ses düzeyi"
+          }
+        }
+      }
     },
-    "Rules apply a preset automatically when an application launches. E.g., “When Spotify opens, set Profile to Music Mode.”" : {
-
+    "%@, %lld percent": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@, %2$lld percent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, yüzde %lld"
+          }
+        }
+      }
     },
-    "Save Preset" : {
-
+    "%@, %lld percent of normal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@, %2$lld percent of normal"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, normalin yüzde %lld’i"
+          }
+        }
+      }
     },
-    "Save a preset first to create automation rules" : {
-
+    "%@: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@: %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: %@"
+          }
+        }
+      }
     },
-    "Save presets from the menu bar popover to capture every app's volume and mute state." : {
-
+    "%lld Quiet Apps": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Sessiz Uygulama"
+          }
+        }
+      }
     },
-    "Save the current volume and mute state of all apps" : {
-
+    "%lld apps": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld uygulama"
+          }
+        }
+      }
     },
-    "Saved Presets" : {
-
+    "%lld output targets available. Pairs on a multi-channel interface are grouped under their device.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld çıkış hedefi var. Çok kanallı arayüzlerdeki çiftler kendi cihazlarının altında gruplanır."
+          }
+        }
+      }
     },
-    "Search" : {
-
+    "%lld%% of normal volume": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normal ses düzeyinin %%%lld’i"
+          }
+        }
+      }
     },
-    "Search applications" : {
-
+    "0 to 100 percent.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "0 ile 100 arası yüzde."
+          }
+        }
+      }
     },
-    "Set ${app} muted to ${muted}" : {
-
+    "0 to 200 percent. 100 is normal; above that MixPill boosts the app.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "0 ile 200 arası yüzde. 100 normaldir; üzeri MixPill’in uygulamayı yükseltmesidir."
+          }
+        }
+      }
     },
-    "Set ${app} volume to ${percent}%" : {
-
+    "1 Quiet App": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Sessiz Uygulama"
+          }
+        }
+      }
     },
-    "Set App Volume" : {
-
+    "1 app": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 uygulama"
+          }
+        }
+      }
     },
-    "Set MixPill Master Volume" : {
-
+    "100% On-Device & Private": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%100 Cihazda ve Gizli"
+          }
+        }
+      }
     },
-    "Set MixPill Profile" : {
-
+    "5-Band Equalizer": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 Bantlı Ekolayzer"
+          }
+        }
+      }
     },
-    "Set MixPill master volume to ${percent}%" : {
-
+    "A preset captures every app's volume, mute, equalizer, noise gate and output device. Save one from the menu bar popover, then apply it by hand, from an automation rule, or from a Focus filter.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir preset, her uygulamanın ses düzeyini, sessizliğini, ekolayzerini, noise gate’ini ve çıkış cihazını saklar. Menü çubuğundan kaydedin; sonra elle, bir otomasyon kuralıyla ya da bir Odak filtresiyle uygulayın."
+          }
+        }
+      }
     },
-    "Set Smart Ducking" : {
-
+    "Accessibility access needed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erişilebilirlik izni gerekiyor"
+          }
+        }
+      }
     },
-    "Set Smart Ducking to ${enabled}" : {
-
+    "Add Rule": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kural Ekle"
+          }
+        }
+      }
     },
-    "Sets the level of the whole mix." : {
-
+    "Add automation rule": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomasyon kuralı ekle"
+          }
+        }
+      }
     },
-    "Sets the volume of one application, without touching anything else." : {
-
+    "Adjusts the gain of the %@ band": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ bandının kazancını ayarlar"
+          }
+        }
+      }
     },
-    "Settings" : {
-
+    "Adjusts the output volume of %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ uygulamasının çıkış düzeyini ayarlar"
+          }
+        }
+      }
     },
-    "Shrinks both the capture and playback blocks. Lower delay, less headroom against dropouts." : {
-
+    "Adjusts the overall output volume of MixPill": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill’in genel çıkış düzeyini ayarlar"
+          }
+        }
+      }
     },
-    "Silences %@" : {
-
+    "Anything quieter than this is silenced — useful for a noisy stream or a game's background hiss. All the way left is off.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bundan sessiz olan her şey susturulur — gürültülü bir yayında ya da bir oyunun zemin uğultusunda işe yarar. Tamamen sola aldığınızda kapalıdır."
+          }
+        }
+      }
     },
-    "Silences audio below this level" : {
-
+    "Application": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama"
+          }
+        }
+      }
     },
-    "Silences one application, or brings it back." : {
-
+    "Application mixer": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama mikseri"
+          }
+        }
+      }
     },
-    "Smart Ducking" : {
-
+    "Applications": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulamalar"
+          }
+        }
+      }
     },
-    "Some audio couldn't be captured" : {
-
+    "Applies a preset and Smart Ducking setting while this Focus is on.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Odak açıkken bir preset ve Smart Ducking ayarı uygular."
+          }
+        }
+      }
     },
-    "Standard buffers capture generously so audio never breaks up, at about 20 ms of delay — right for music, video and games. Ultra-Low cuts that for live monitoring, but leaves the system less room to keep up and can click on busy machines or wide audio interfaces." : {
-
+    "Applies the selected preset when %@ launches.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ açıldığında seçili preset’i uygular."
+          }
+        }
+      }
     },
-    "Start Mixing" : {
-
+    "Apply": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygula"
+          }
+        }
+      }
     },
-    "Starts MixPill automatically at login" : {
-
+    "Apply ${preset}": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "${preset} uygula"
+          }
+        }
+      }
     },
-    "Startup" : {
-
+    "Apply MixPill Preset": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill Preset’i Uygula"
+          }
+        }
+      }
     },
-    "Stops MixPill capturing this app so its own routing and latency are unaffected" : {
-
+    "Audio Performance": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses Başarımı"
+          }
+        }
+      }
     },
-    "That preset no longer exists. Save it again in MixPill." : {
-
+    "Automatically lowers other apps while somebody is speaking on a call": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir görüşmede konuşulurken diğer uygulamaları otomatik olarak kısar"
+          }
+        }
+      }
     },
-    "To give an app its own volume, MixPill receives that app's sound before it reaches your speakers, applies your settings, and plays it back. It asks for no permissions to do this — no screen recording, no microphone. Nothing is written to disk and nothing leaves your Mac." : {
-
+    "Automation": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomasyon"
+          }
+        }
+      }
     },
-    "Turn MixPill on under Privacy & Security › Accessibility. This updates itself." : {
-
+    "Back": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri"
+          }
+        }
+      }
     },
-    "Turns automatic dipping of background apps during calls on or off." : {
-
+    "Bands": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantlar"
+          }
+        }
+      }
     },
-    "Ultra-Low Latency Mode" : {
-
+    "Blocks background applications from stealing keyboard focus": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arka plandaki uygulamaların klavye odağını çalmasını engeller"
+          }
+        }
+      }
     },
-    "Unmute" : {
-
+    "Can't reach the audio engine": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses motoruna ulaşılamıyor"
+          }
+        }
+      }
     },
-    "Unmute %@" : {
-
+    "Cancel": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vazgeç"
+          }
+        }
+      }
     },
-    "Updates" : {
-
+    "Capture & System": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yakalama ve Sistem"
+          }
+        }
+      }
     },
-    "Volume" : {
-
+    "Captures every app's volume, mute, EQ, noise gate and output.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her uygulamanın ses düzeyini, sessizliğini, EQ’sunu, noise gate’ini ve çıkışını saklar."
+          }
+        }
+      }
     },
-    "Waiting for audio" : {
-
+    "Check Now": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şimdi Denetle"
+          }
+        }
+      }
     },
-    "Welcome to MixPill" : {
-
+    "Check for Updates Automatically": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeleri Otomatik Denetle"
+          }
+        }
+      }
     },
-    "What MixPill does with your audio" : {
-
+    "Choose the output for each application. “System Default” follows whatever macOS is using.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her uygulama için çıkışı seçin. “System Default”, macOS hangi cihazı kullanıyorsa onu izler."
+          }
+        }
+      }
     },
-    "When a VoIP app (Zoom, Teams, Discord, Webex, Slack) is actively producing audio, all other apps are smoothly reduced to 20% volume and restored when the call audio stops. Ducking runs inside the MixPillCore service, so it keeps working even when the popover is closed." : {
-
+    "Continue": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devam"
+          }
+        }
+      }
     },
-    "You're Ready" : {
-
+    "CoreAudio": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CoreAudio"
+          }
+        }
+      }
     },
-    "^[%lld app](inflect: true) ready to mix" : {
-
+    "Create a rule that applies a preset when an app opens": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir uygulama açıldığında preset uygulayan bir kural oluşturun"
+          }
+        }
+      }
     },
-    "⌥ + Scroll adjusts the frontmost app's volume · ⌘⌥M mutes it — anywhere on your Mac, without opening the popover." : {
-
+    "Custom": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Özel"
+          }
+        }
+      }
     },
-    "⌥ Scroll over any window to adjust it · ⌘⌥M to mute" : {
-
+    "DAW Direct for %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ için DAW Direct"
+          }
+        }
+      }
+    },
+    "DAW Direct is off, so %@ is mixed like any other app. Turn it on to hand it back its own output path.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DAW Direct kapalı, yani %@ diğer uygulamalar gibi mikslenir. Kendi çıkış yolunu geri vermek için açın."
+          }
+        }
+      }
+    },
+    "DAW Direct is on: MixPill leaves %@ completely alone, so its own outputs, routing and monitoring latency are untouched. Turn it off to mix it here.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DAW Direct açık: MixPill %@ uygulamasına hiç dokunmaz; kendi çıkışları, yönlendirmesi ve monitör gecikmesi olduğu gibi kalır. Burada mikslemek için kapatın."
+          }
+        }
+      }
+    },
+    "Delete preset": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset’i sil"
+          }
+        }
+      }
+    },
+    "Delete preset %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ preset’ini sil"
+          }
+        }
+      }
+    },
+    "Delete rule": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kuralı sil"
+          }
+        }
+      }
+    },
+    "Delete rule %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kuralını sil"
+          }
+        }
+      }
+    },
+    "Diagnostics": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tanılama"
+          }
+        }
+      }
+    },
+    "Direct": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrudan"
+          }
+        }
+      }
+    },
+    "Disable %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kapat"
+          }
+        }
+      }
+    },
+    "Ducking Rules": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ducking Kuralları"
+          }
+        }
+      }
+    },
+    "EQ band %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ EQ bandı"
+          }
+        }
+      }
+    },
+    "Enable %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ aç"
+          }
+        }
+      }
+    },
+    "Enable Global Hotkeys & Quick Gestures": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Genel Kısayolları ve Hızlı Hareketleri Aç"
+          }
+        }
+      }
+    },
+    "Enabled": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açık"
+          }
+        }
+      }
+    },
+    "Equalizer & Noise Gate": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ekolayzer ve Noise Gate"
+          }
+        }
+      }
+    },
+    "Equalizer for %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ için ekolayzer"
+          }
+        }
+      }
+    },
+    "Equalizer preset": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ekolayzer preset’i"
+          }
+        }
+      }
+    },
+    "Focus Shield": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odak Kalkanı"
+          }
+        }
+      }
+    },
+    "Focus Shield is off: click to block background apps from stealing keyboard focus": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odak Kalkanı kapalı: arka plandaki uygulamaların klavye odağını çalmasını engellemek için tıklayın"
+          }
+        }
+      }
+    },
+    "Focus Shield is on: background apps cannot steal keyboard focus": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odak Kalkanı açık: arka plandaki uygulamalar klavye odağını çalamaz"
+          }
+        }
+      }
+    },
+    "General": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Genel"
+          }
+        }
+      }
+    },
+    "Global Hotkeys": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Genel Kısayollar"
+          }
+        }
+      }
+    },
+    "Idle": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boşta"
+          }
+        }
+      }
+    },
+    "Individual volume control for every app on your Mac — right from the menu bar.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac’inizdeki her uygulama için ayrı ses denetimi — doğrudan menü çubuğundan."
+          }
+        }
+      }
+    },
+    "Input App": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama"
+          }
+        }
+      }
+    },
+    "Launch MixPill automatically when you log into your Mac.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac’inizde oturum açtığınızda MixPill kendiliğinden başlasın."
+          }
+        }
+      }
+    },
+    "Launch at Login": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oturum Açıldığında Başlat"
+          }
+        }
+      }
+    },
+    "Lets you control volumes from any app using keyboard and scroll shortcuts": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klavye ve kaydırma kısayollarıyla her uygulamadan ses denetimi sağlar"
+          }
+        }
+      }
+    },
+    "Listening for Audio": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses Bekleniyor"
+          }
+        }
+      }
+    },
+    "Load Preset": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset Yükle"
+          }
+        }
+      }
+    },
+    "Looks once a day and only interrupts you when there is something to install.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Günde bir kez bakar ve yalnızca kurulacak bir şey varsa sizi rahatsız eder."
+          }
+        }
+      }
+    },
+    "Master Volume": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ana Ses Düzeyi"
+          }
+        }
+      }
+    },
+    "Master volume": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ana ses düzeyi"
+          }
+        }
+      }
+    },
+    "MixPill": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill"
+          }
+        }
+      }
+    },
+    "MixPill Settings… (⌘,)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill Ayarları… (⌘,)"
+          }
+        }
+      }
+    },
+    "MixPill is already mixing. Open it from the menu bar whenever you want to change something.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill zaten miksliyor. Bir şeyi değiştirmek istediğinizde menü çubuğundan açın."
+          }
+        }
+      }
+    },
+    "MixPill is distributed directly rather than through the App Store, so it updates itself. Only a request for the update feed leaves your Mac — no usage data, ever.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill, App Store yerine doğrudan dağıtılır; bu yüzden kendini günceller. Mac’inizden yalnızca güncelleme akışı isteği çıkar — hiçbir kullanım verisi gitmez."
+          }
+        }
+      }
+    },
+    "MixPill never asks for Accessibility access unless you turn hotkeys on.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kısayolları açmadığınız sürece MixPill hiçbir zaman Erişilebilirlik izni istemez."
+          }
+        }
+      }
+    },
+    "MixPill picks up an app as soon as it plays something. Start some audio and it will appear here.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill, bir uygulama ses çalar çalmaz onu yakalar. Bir şey çalın, burada görünsün."
+          }
+        }
+      }
+    },
+    "MixPill's audio service isn't answering. Reconnecting — if this keeps up, open Settings › Diagnostics and reset the engine.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill’in ses servisi yanıt vermiyor. Yeniden bağlanılıyor — sürerse Ayarlar › Tanılama’dan motoru sıfırlayın."
+          }
+        }
+      }
+    },
+    "Mixing runs in a single real-time render pass; latency is the hardware I/O block plus the tiny channel ring, nothing more. With nothing playing, MixPill stops its output unit so the audio device can sleep.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Miksleme tek bir gerçek zamanlı render geçişinde yapılır; gecikme donanımın G/Ç bloğu artı küçük kanal halkasından ibarettir. Hiçbir şey çalmıyorken MixPill çıkış birimini durdurur, böylece ses cihazı uyuyabilir."
+          }
+        }
+      }
+    },
+    "Mute": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sustur"
+          }
+        }
+      }
+    },
+    "Mute %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sustur"
+          }
+        }
+      }
+    },
+    "Mute MixPill": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill’i sustur"
+          }
+        }
+      }
+    },
+    "Mute everything": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her şeyi sustur"
+          }
+        }
+      }
+    },
+    "Mute or Unmute App": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulamayı Sustur ya da Aç"
+          }
+        }
+      }
+    },
+    "Muted": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Susturuldu"
+          }
+        }
+      }
+    },
+    "No Automation Rules": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomasyon Kuralı Yok"
+          }
+        }
+      }
+    },
+    "No Eligible Apps": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygun Uygulama Yok"
+          }
+        }
+      }
+    },
+    "No Presets Saved": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıtlı Preset Yok"
+          }
+        }
+      }
+    },
+    "No apps available to route.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yönlendirilecek uygulama yok."
+          }
+        }
+      }
+    },
+    "No apps playing yet": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henüz çalan uygulama yok"
+          }
+        }
+      }
+    },
+    "Noise Gate": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noise Gate"
+          }
+        }
+      }
+    },
+    "Noise gate threshold": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noise gate eşiği"
+          }
+        }
+      }
+    },
+    "None": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yok"
+          }
+        }
+      }
+    },
+    "Not captured": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yakalanmadı"
+          }
+        }
+      }
+    },
+    "On a call — other apps duck while this one is speaking": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görüşmede — bu uygulama konuşurken diğerleri kısılır"
+          }
+        }
+      }
+    },
+    "One-Tap Presets": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tek Dokunuşluk Preset’ler"
+          }
+        }
+      }
+    },
+    "Open Diagnostics": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tanılamayı Aç"
+          }
+        }
+      }
+    },
+    "Open System Settings": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem Ayarları’nı Aç"
+          }
+        }
+      }
+    },
+    "Opens the 5-band equalizer and noise gate": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 bantlı ekolayzeri ve noise gate’i açar"
+          }
+        }
+      }
+    },
+    "Opens the MixPill settings window": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill ayarlar penceresini açar"
+          }
+        }
+      }
+    },
+    "Output": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çıkış"
+          }
+        }
+      }
+    },
+    "Output device for %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ için çıkış cihazı"
+          }
+        }
+      }
+    },
+    "Output for %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ için çıkış"
+          }
+        }
+      }
+    },
+    "Output: %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çıkış: %@"
+          }
+        }
+      }
+    },
+    "Pins %@ to a specific audio output device or channel pair": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ uygulamasını belirli bir çıkış cihazına ya da kanal çiftine sabitler"
+          }
+        }
+      }
+    },
+    "Play something in any app and it appears here with its own volume.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herhangi bir uygulamada bir şey çalın; kendi ses düzeyiyle burada görünsün."
+          }
+        }
+      }
+    },
+    "Playing": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalıyor"
+          }
+        }
+      }
+    },
+    "Playing Now": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şimdi Çalıyor"
+          }
+        }
+      }
+    },
+    "Point every application at one output": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bütün uygulamaları tek bir çıkışa yönlendir"
+          }
+        }
+      }
+    },
+    "Preset": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset"
+          }
+        }
+      }
+    },
+    "Preset Switching": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset Değiştirme"
+          }
+        }
+      }
+    },
+    "Preset for %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ için preset"
+          }
+        }
+      }
+    },
+    "Preset name": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset adı"
+          }
+        }
+      }
+    },
+    "Presets": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset’ler"
+          }
+        }
+      }
+    },
+    "Quit MixPill": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill’den Çık"
+          }
+        }
+      }
+    },
+    "Quit MixPill (⌘Q)": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill’den Çık (⌘Q)"
+          }
+        }
+      }
+    },
+    "Rebuilds every output engine and re-applies routing without restarting the app": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulamayı yeniden başlatmadan bütün çıkış motorlarını kurar ve yönlendirmeyi yeniden uygular"
+          }
+        }
+      }
+    },
+    "Rebuilds the entire output graph and re-arms captures. Takes under a second; no app restart needed.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bütün çıkış grafiğini yeniden kurar ve yakalamaları yeniden hazırlar. Bir saniyeden kısa sürer; uygulamayı yeniden başlatmak gerekmez."
+          }
+        }
+      }
+    },
+    "Recovery": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurtarma"
+          }
+        }
+      }
+    },
+    "Reduces audio delay for live monitoring and lip-synced video at slightly higher CPU usage": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canlı monitör ve dudak senkronu için ses gecikmesini azaltır, karşılığında biraz daha CPU kullanır"
+          }
+        }
+      }
+    },
+    "Replace this preset with the mixer's current state": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu preset’i mikserin şu anki durumuyla değiştir"
+          }
+        }
+      }
+    },
+    "Reset %@ band": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ bandını sıfırla"
+          }
+        }
+      }
+    },
+    "Reset Audio Engine": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses Motorunu Sıfırla"
+          }
+        }
+      }
+    },
+    "Reset the %@ band to 0 dB": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ bandını 0 dB’ye sıfırla"
+          }
+        }
+      }
+    },
+    "Restore a saved preset": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıtlı bir preset’i geri yükle"
+          }
+        }
+      }
+    },
+    "Restores audio for %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ uygulamasının sesini geri açar"
+          }
+        }
+      }
+    },
+    "Restores every app's saved volume, mute, equalizer, noise gate and output from one of your presets.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset’lerinizden birinden her uygulamanın kayıtlı ses düzeyini, sessizliğini, ekolayzerini, noise gate’ini ve çıkışını geri yükler."
+          }
+        }
+      }
+    },
+    "Route %@ to %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Route %1$@ to %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ uygulamasını %@ çıkışına yönlendir"
+          }
+        }
+      }
+    },
+    "Routing": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yönlendirme"
+          }
+        }
+      }
+    },
+    "Rules apply a preset automatically when an application launches. E.g., “When Spotify opens, set Profile to Music Mode.”": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurallar, bir uygulama açıldığında otomatik olarak preset uygular. Örneğin “Spotify açılınca Müzik Modu’na geç.”"
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydet"
+          }
+        }
+      }
+    },
+    "Save Preset": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset Kaydet"
+          }
+        }
+      }
+    },
+    "Save a preset first to create automation rules": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomasyon kuralı oluşturmak için önce bir preset kaydedin"
+          }
+        }
+      }
+    },
+    "Save every app's volume, mute, EQ, noise gate and output under a name": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her uygulamanın ses düzeyini, sessizliğini, EQ’sunu, noise gate’ini ve çıkışını bir adla kaydedin"
+          }
+        }
+      }
+    },
+    "Saved Presets": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıtlı Preset’ler"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ara"
+          }
+        }
+      }
+    },
+    "Search applications": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulamalarda ara"
+          }
+        }
+      }
+    },
+    "Send everything to…": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hepsini şuraya gönder…"
+          }
+        }
+      }
+    },
+    "Set ${app} muted to ${muted}": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "${app} sessizliğini ${muted} yap"
+          }
+        }
+      }
+    },
+    "Set ${app} volume to ${percent}%": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "${app} ses düzeyini %${percent} yap"
+          }
+        }
+      }
+    },
+    "Set App Volume": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama Ses Düzeyini Ayarla"
+          }
+        }
+      }
+    },
+    "Set MixPill Master Volume": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill Ana Ses Düzeyini Ayarla"
+          }
+        }
+      }
+    },
+    "Set MixPill Profile": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill Profilini Ayarla"
+          }
+        }
+      }
+    },
+    "Set MixPill master volume to ${percent}%": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill ana ses düzeyini %${percent} yap"
+          }
+        }
+      }
+    },
+    "Set Smart Ducking": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smart Ducking’i Ayarla"
+          }
+        }
+      }
+    },
+    "Set Smart Ducking to ${enabled}": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smart Ducking’i ${enabled} yap"
+          }
+        }
+      }
+    },
+    "Sets the level of the whole mix.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bütün miksin düzeyini ayarlar."
+          }
+        }
+      }
+    },
+    "Sets the volume of one application, without touching anything else.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başka hiçbir şeye dokunmadan tek bir uygulamanın ses düzeyini ayarlar."
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar"
+          }
+        }
+      }
+    },
+    "Shrinks both the capture and playback blocks. Lower delay, less headroom against dropouts.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hem yakalama hem çalma bloklarını küçültür. Daha az gecikme, kesintilere karşı daha az pay."
+          }
+        }
+      }
+    },
+    "Silences %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ uygulamasını susturur"
+          }
+        }
+      }
+    },
+    "Silences one application, or brings it back.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir uygulamayı susturur ya da geri açar."
+          }
+        }
+      }
+    },
+    "Silences this app while it is quieter than the threshold": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu uygulamayı eşiğin altında kaldığı sürece susturur"
+          }
+        }
+      }
+    },
+    "Smart Ducking": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smart Ducking"
+          }
+        }
+      }
+    },
+    "Solo %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ solo"
+          }
+        }
+      }
+    },
+    "Solo %@ — silence everything else": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ solo — diğer her şeyi sustur"
+          }
+        }
+      }
+    },
+    "Some audio couldn't be captured": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bazı sesler yakalanamadı"
+          }
+        }
+      }
+    },
+    "Standard buffers capture generously so audio never breaks up, at about 20 ms of delay — right for music, video and games. Ultra-Low cuts that for live monitoring, but leaves the system less room to keep up and can click on busy machines or wide audio interfaces.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standart tamponlar cömert yakalar, böylece ses hiç kesilmez; karşılığı yaklaşık 20 ms gecikmedir — müzik, video ve oyun için doğrusu budur. Ultra-Low bunu canlı monitör için kısar ama sisteme daha az pay bırakır; yoğun makinelerde ya da geniş ses arayüzlerinde tıklamaya yol açabilir."
+          }
+        }
+      }
+    },
+    "Start Mixing": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mikslemeye Başla"
+          }
+        }
+      }
+    },
+    "Starts MixPill automatically at login": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oturum açıldığında MixPill’i kendiliğinden başlatır"
+          }
+        }
+      }
+    },
+    "Startup": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başlangıç"
+          }
+        }
+      }
+    },
+    "Stop soloing %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ solosunu bırak"
+          }
+        }
+      }
+    },
+    "Stops MixPill capturing this app so its own routing and latency are unaffected": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill’in bu uygulamayı yakalamasını durdurur; kendi yönlendirmesi ve gecikmesi etkilenmez"
+          }
+        }
+      }
+    },
+    "System output": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem çıkışı"
+          }
+        }
+      }
+    },
+    "That preset no longer exists. Save it again in MixPill.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O preset artık yok. MixPill’de yeniden kaydedin."
+          }
+        }
+      }
+    },
+    "To give an app its own volume, MixPill receives that app's sound before it reaches your speakers, applies your settings, and plays it back. It asks for no permissions to do this — no screen recording, no microphone. Nothing is written to disk and nothing leaves your Mac.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir uygulamaya kendi ses düzeyini verebilmek için MixPill, o uygulamanın sesini hoparlörlerinize ulaşmadan önce alır, ayarlarınızı uygular ve geri çalar. Bunun için hiçbir izin istemez — ne ekran kaydı ne mikrofon. Diske hiçbir şey yazılmaz ve Mac’inizden hiçbir şey çıkmaz."
+          }
+        }
+      }
+    },
+    "Turn MixPill on under Privacy & Security › Accessibility. This updates itself.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gizlilik ve Güvenlik › Erişilebilirlik altında MixPill’i açın. Burası kendini günceller."
+          }
+        }
+      }
+    },
+    "Turns automatic dipping of background apps during calls on or off.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görüşme sırasında arka plandaki uygulamaların otomatik kısılmasını açar ya da kapatır."
+          }
+        }
+      }
+    },
+    "Ultra-Low Latency Mode": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ultra Düşük Gecikme Modu"
+          }
+        }
+      }
+    },
+    "Undo %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri al: %@"
+          }
+        }
+      }
+    },
+    "Unmute": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesi aç"
+          }
+        }
+      }
+    },
+    "Unmute %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sesini aç"
+          }
+        }
+      }
+    },
+    "Unmute MixPill": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill sesini aç"
+          }
+        }
+      }
+    },
+    "Unmute everything": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her şeyin sesini aç"
+          }
+        }
+      }
+    },
+    "Update preset %@ from the current mix": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ preset’ini şu anki miksle güncelle"
+          }
+        }
+      }
+    },
+    "Updates": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler"
+          }
+        }
+      }
+    },
+    "Volume": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses düzeyi"
+          }
+        }
+      }
+    },
+    "Waiting for audio": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses bekleniyor"
+          }
+        }
+      }
+    },
+    "Welcome to MixPill": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill’e hoş geldiniz"
+          }
+        }
+      }
+    },
+    "What MixPill does with your audio": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill sesinizle ne yapıyor"
+          }
+        }
+      }
+    },
+    "While an app is holding your microphone and producing sound, everything else dips smoothly to 20% and comes back when the talking stops. There's no list of apps to keep up to date — FaceTime, meetings in a browser tab and anything released tomorrow all count. Ducking runs inside the MixPillCore service, so it keeps working with the popover closed.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir uygulama mikrofonunuzu tutarken ses de üretiyorsa diğer her şey yumuşakça %20’ye iner ve konuşma bitince geri döner. Güncel tutulacak bir uygulama listesi yok — FaceTime, tarayıcı sekmesindeki toplantılar ve yarın çıkacak her şey buna dahildir. Ducking, MixPillCore servisinin içinde çalışır; bu yüzden pencere kapalıyken de sürer."
+          }
+        }
+      }
+    },
+    "You're Ready": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hazırsınız"
+          }
+        }
+      }
+    },
+    "^[%lld app](inflect: true) ready to mix": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld uygulama mikslenmeye hazır"
+          }
+        }
+      }
+    },
+    "⌘Z": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘Z"
+          }
+        }
+      }
+    },
+    "⌥ + Scroll adjusts the frontmost app's volume · ⌘⌥M mutes it — anywhere on your Mac, without opening the popover.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌥ + Kaydırma öndeki uygulamanın sesini ayarlar · ⌘⌥M susturur — Mac’inizin her yerinde, pencereyi açmadan."
+          }
+        }
+      }
+    },
+    "⌥ Scroll over any window to adjust it · ⌘⌥M to mute": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herhangi bir pencerede ⌥ Kaydırma ile ayarlayın · ⌘⌥M ile susturun"
+          }
+        }
+      }
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }

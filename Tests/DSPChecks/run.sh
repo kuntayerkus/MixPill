@@ -1,9 +1,10 @@
 #!/bin/sh
 #
-# Checks for the core DSP primitives — the ring buffer and the channel
-# strip's filter chain — compiled straight against the engine sources.
-# No Xcode target: these classes are plain Swift with no XPC, no HAL and
-# no ScreenCaptureKit, so a standalone binary exercises them directly.
+# Checks for the parts of MixPill that are pure value logic — the ring
+# buffer, the channel strip's filter chain, the routing pair id, the
+# fader and meter scales, and preset migration. No Xcode target: none of
+# these files touch XPC or the HAL, so a standalone binary exercises them
+# directly and runs in about a second.
 #
 #   Tests/DSPChecks/run.sh          # run the checks
 #   Tests/DSPChecks/run.sh --guard  # ...under guard malloc
@@ -22,6 +23,10 @@ swiftc -O -swift-version 6 -o "$out/dspchecks" \
     "$root/Core/ChannelDSP.swift" \
     "$root/Core/RealtimeSupport.swift" \
     "$root/Core/CoreLog.swift" \
+    "$root/Shared/CoreIdentifiers.swift" \
+    "$root/Utilities/AudioScale.swift" \
+    "$root/Models/PresetModel.swift" \
+    "$root/Tests/DSPChecks/Contracts.swift" \
     "$root/Tests/DSPChecks/main.swift"
 
 if [ "$1" = "--guard" ]; then

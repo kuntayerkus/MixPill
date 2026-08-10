@@ -2,8 +2,8 @@ import Foundation
 import CoreAudio
 
 /// CoreAudio HAL device registry for the core service: enumerates output
-/// devices, tracks the system default, claims the default output for the
-/// MixPill null-sink driver, and watches topology changes.
+/// devices, tracks the system default, can move the system default, and
+/// watches topology changes.
 ///
 /// Device IDs are ephemeral across `coreaudiod` restarts, so everything
 /// persisted or exposed is keyed by device **UID**; IDs are resolved on
@@ -110,8 +110,8 @@ final class DeviceRegistry: @unchecked Sendable {
     // MARK: - Default output control
 
     /// Moves the macOS system default output onto the device with this
-    /// UID. This is what echo-free mode uses to point all application
-    /// audio at the silent MixPill driver device.
+    /// UID, so MixPill can offer "make this the system output" next to the
+    /// per-app routing rather than sending people to Sound settings.
     @discardableResult
     func setDefaultOutputDevice(uid: String) -> Bool {
         guard let deviceID = deviceID(forUID: uid) else {

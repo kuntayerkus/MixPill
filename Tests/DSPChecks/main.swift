@@ -111,15 +111,28 @@ do {
     // The regression: section count must not depend on how many bands are
     // non-flat, because the vDSP setup is allocated for a fixed count.
     let one = BiquadDesigner.peakingCoefficients(gains: [6, 0, 0, 0, 0], sampleRate: 48000)
-    let three = BiquadDesigner.peakingCoefficients(gains: [6, 0, -3, 0, 4], sampleRate: 48000)
     let five = BiquadDesigner.peakingCoefficients(gains: [1, 2, 3, 4, 5], sampleRate: 48000)
-    check("one non-flat band yields 5 sections", one?.count == 5)
-    check("three non-flat bands yield 5 sections", three?.count == 5)
-    check("five non-flat bands yield 5 sections", five?.count == 5)
-    check("every section has 5 coefficients", (five ?? []).allSatisfy { $0.count == 5 })
-    check("flat band is a pass-through section", one?[1] == [1, 0, 0, 0, 0])
+    check("one non-flat band still designs a full cascade", one != nil)
+    check("five non-flat bands design a full cascade", five != nil)
+    check("flat band is a pass-through section", one?.section(1) == [1, 0, 0, 0, 0])
+    check("non-flat band is not pass-through", one?.section(0) != [1, 0, 0, 0, 0])
     check("short gain arrays are tolerated",
-          BiquadDesigner.peakingCoefficients(gains: [6], sampleRate: 48000)?.count == 5)
+          BiquadDesigner.peakingCoefficients(gains: [6], sampleRate: 48000) != nil)
+    check("coefficient block is exactly 5 sections of 5", EQCoefficients.floatCount == 25)
+
+    // The block is inline storage, so it must survive a copy through the
+    // parameter struct without losing or shifting a coefficient.
+    if let five {
+        var params = ChannelDSPParameters.flat
+        params.eqCoefficients = five
+        let copied = params.eqCoefficients
+        check("coefficients round-trip through the parameter block",
+              (0..<EQCoefficients.floatCount).allSatisfy { copied[$0] == five[$0] })
+        check("identical designs compare equal",
+              BiquadDesigner.peakingCoefficients(gains: [1, 2, 3, 4, 5], sampleRate: 48000) == five)
+        check("different designs compare unequal",
+              BiquadDesigner.peakingCoefficients(gains: [1, 2, 3, 4, 6], sampleRate: 48000) != five)
+    }
 }
 
 // ── Channel DSP ───────────────────────────────────────────────────────────
@@ -241,6 +254,8 @@ do {
     // block after it is fully silent.
     check("mute reaches silence", muteOutput.suffix(frames).allSatisfy { $0 == 0 })
 }
+
+runContractChecks()
 
 print("")
 print("\(checks - failures)/\(checks) checks passed")

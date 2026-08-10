@@ -18,12 +18,26 @@ public struct CoreAppInfo: Codable, Hashable, Sendable {
     /// Holding an input stream right now — the signal MixPill uses to know
     /// someone is on a call.
     public let isCapturingInput: Bool
+    /// Whether the engine actually holds a tap on this app.
+    ///
+    /// False means MixPill is not in this app's signal path at all — it is
+    /// in DAW Direct, or its tap failed — so the channel strip's volume,
+    /// mute and EQ do nothing. The interface has to say so rather than
+    /// offering a fader that moves without changing the sound.
+    public let isCaptured: Bool
 
-    public init(bundleID: String, name: String, isPlaying: Bool = false, isCapturingInput: Bool = false) {
+    public init(
+        bundleID: String,
+        name: String,
+        isPlaying: Bool = false,
+        isCapturingInput: Bool = false,
+        isCaptured: Bool = true
+    ) {
         self.bundleID = bundleID
         self.name = name
         self.isPlaying = isPlaying
         self.isCapturingInput = isCapturingInput
+        self.isCaptured = isCaptured
     }
 }
 
@@ -146,11 +160,22 @@ public struct DevicesPayload: Codable, Sendable {
     public let devices: [OutputDeviceDTO]
     public let defaultDeviceUID: String?
     public let columns: [RoutingColumnDTO]
+    /// The rate the mixer is actually running at, which follows the
+    /// interface clock. The EQ curve is drawn from the same biquad design
+    /// the engine runs, so it has to be evaluated at the same rate or the
+    /// picture stops matching the sound above 48 kHz.
+    public let canonicalSampleRate: Double
 
-    public init(devices: [OutputDeviceDTO], defaultDeviceUID: String?, columns: [RoutingColumnDTO]) {
+    public init(
+        devices: [OutputDeviceDTO],
+        defaultDeviceUID: String?,
+        columns: [RoutingColumnDTO],
+        canonicalSampleRate: Double = CoreAudioFormat.baseSampleRate
+    ) {
         self.devices = devices
         self.defaultDeviceUID = defaultDeviceUID
         self.columns = columns
+        self.canonicalSampleRate = canonicalSampleRate
     }
 }
 
@@ -161,7 +186,10 @@ public struct DiagnosticsDTO: Codable, Sendable {
     public var ioLatencyMS: Double
     public var ringCapacityFrames: Int
     public var activeTaps: Int
-    public var activeConverters: Int
+    /// Output units currently running. Zero with nothing playing is the
+    /// healthy idle state, not a fault — MixPill releases the device so it
+    /// can sleep.
+    public var activeEngines: Int
     public var hardwareSampleRate: Double?
     public var lastRecoveryReason: String
     public var lastRecoveryDate: Date?
@@ -172,7 +200,7 @@ public struct DiagnosticsDTO: Codable, Sendable {
         ioLatencyMS = 0
         ringCapacityFrames = 0
         activeTaps = 0
-        activeConverters = 0
+        activeEngines = 0
         hardwareSampleRate = nil
         lastRecoveryReason = "None"
         lastRecoveryDate = nil
