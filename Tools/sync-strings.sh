@@ -26,8 +26,12 @@ if [ ! -x "$tool" ]; then
 fi
 
 echo "Building so the compiler emits fresh .stringsdata…"
+# Signing is irrelevant to string extraction, and requiring it would make
+# this unusable anywhere without a certificate — CI included.
 xcodebuild -project "$root/MixPill.xcodeproj" -scheme MixPill \
-    -configuration Debug -derivedDataPath "$derived" build >/dev/null
+    -configuration Debug -derivedDataPath "$derived" \
+    -clonedSourcePackagesDirPath "$root/.spm" \
+    CODE_SIGNING_ALLOWED=NO build >/dev/null
 
 data=$(find "$derived" -name '*.stringsdata' -path '*MixPill.build*')
 if [ -z "$data" ]; then
