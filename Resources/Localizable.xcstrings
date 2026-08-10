@@ -424,9 +424,6 @@
     "Some audio couldn't be captured" : {
 
     },
-    "Standard (256 frames) is ideal for background music and gaming with minimal CPU usage. Ultra-Low (128 frames) suits live video editing, podcast monitoring and lip-synced media. Mixing itself runs in a single real-time render pass with sub-block latency." : {
-
-    },
     "Standard buffers capture generously so audio never breaks up, at about 20 ms of delay — right for music, video and games. Ultra-Low cuts that for live monitoring, but leaves the system less room to keep up and can click on busy machines or wide audio interfaces." : {
 
     },
@@ -434,9 +431,6 @@
 
     },
     "Starts MixPill automatically at login" : {
-
-    },
-    "Switches the hardware I/O block from 256 frames (~5 ms) to 128 frames (~3 ms)." : {
 
     },
     "That preset no longer exists. Save it again in MixPill." : {

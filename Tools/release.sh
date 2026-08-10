@@ -63,6 +63,24 @@ if [ ! -d "$APP" ]; then
     exit 1
 fi
 
+# ── The update key must be right before anything else is worth doing ───────
+#
+# generate_appcast signs an update only when the archived app's
+# SUPublicEDKey matches the private key in the keychain. When it does not,
+# it writes an *unsigned* entry and says nothing — and Sparkle then refuses
+# that update on every machine. Catching it here costs a second; catching
+# it after publishing costs a release.
+echo "▸ Checking the Sparkle key"
+EMBEDDED_KEY=$(plutil -extract SUPublicEDKey raw "$APP/Contents/Info.plist" 2>/dev/null || echo "")
+KEYCHAIN_KEY=$("$ROOT/.spm/artifacts/sparkle/Sparkle/bin/generate_keys" -p 2>/dev/null | tr -d '[:space:]')
+if [ -z "$EMBEDDED_KEY" ] || [ "$EMBEDDED_KEY" != "$KEYCHAIN_KEY" ]; then
+    echo "✗ SUPublicEDKey in the built app does not match the signing key." >&2
+    echo "  app:      ${EMBEDDED_KEY:-<missing>}" >&2
+    echo "  keychain: ${KEYCHAIN_KEY:-<none>}" >&2
+    echo "  Updates built from this would be published unsigned and rejected." >&2
+    exit 1
+fi
+
 # ── Verify the signature before spending a notarization round trip ─────────
 echo "▸ Verifying the signature"
 codesign --verify --deep --strict --verbose=2 "$APP"

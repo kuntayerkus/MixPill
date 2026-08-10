@@ -17,12 +17,19 @@ import Sparkle
 public final class UpdateService: NSObject {
     public static let shared = UpdateService()
 
-    /// Bound by the Settings UI so the menu item can disable itself while a
-    /// check is already running.
-    public private(set) var canCheckForUpdates = false
-
     private var controller: SPUStandardUpdaterController?
-    private var observation: NSKeyValueObservation?
+
+    /// Whether a check can start right now.
+    ///
+    /// Read on demand rather than observed. Sparkle exposes this as a plain
+    /// Obj-C property, and binding to it with a Swift key path needs it to
+    /// be `dynamic` — which holds on some toolchains and not others, so the
+    /// KVO version compiled locally and failed on CI's Xcode 16.4. A
+    /// straight read works everywhere and is accurate at the moment the
+    /// button is drawn, which is the only moment that matters.
+    public var canCheckForUpdates: Bool {
+        controller?.updater.canCheckForUpdates ?? false
+    }
 
     private override init() {
         super.init()
@@ -40,13 +47,6 @@ public final class UpdateService: NSObject {
             userDriverDelegate: nil
         )
         self.controller = controller
-
-        observation = controller.updater.observe(\.canCheckForUpdates, options: [.initial, .new]) { [weak self] updater, _ in
-            let value = updater.canCheckForUpdates
-            Task { @MainActor in
-                self?.canCheckForUpdates = value
-            }
-        }
     }
 
     /// The user asked to check now.

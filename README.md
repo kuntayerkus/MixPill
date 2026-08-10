@@ -237,6 +237,14 @@ builds a signed DMG, then prints the `gh release create`,
 `generate_appcast` and `git push` commands to finish the job. Pushing the
 regenerated `appcast.xml` to `main` is what makes the update live.
 
+One trap worth knowing, because it fails silently: `generate_appcast`
+signs an update only if the archived app's `SUPublicEDKey` matches the
+private key in your keychain. If it does not, it writes an unsigned entry
+without complaining, and Sparkle then rejects that update on every
+machine. `release.sh` compares the two and refuses to continue, but if you
+ever run the tool by hand, check the output contains
+`sparkle:edSignature`.
+
 ## Known limitations
 
 - Audio reaching the speakers through a shared system process cannot be
