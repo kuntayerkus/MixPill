@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- MixPill ships outside the Mac App Store (Developer ID + notarization)
+	     and is not sandboxed, so this service carries no sandbox entitlements:
+	     `com.apple.security.inherit` is only meaningful when the parent process
+	     is itself sandboxed, and the audio-unit-host temporary exception only
+	     grants something a sandbox would otherwise deny. Declaring either here
+	     would be inert at runtime and would force a provisioning profile onto
+	     every build.
+
+	     Screen & System Audio Recording is governed by TCC — attributed to the
+	     responsible process, MixPill.app — and never by an entitlement.
+
+	     The hardened runtime is enabled for this target in project.yml, which
+	     is what notarization actually requires. -->
+</dict>
+</plist>

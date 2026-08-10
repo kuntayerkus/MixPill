@@ -1,0 +1,64 @@
+name: Build & Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Generate, build & check (macOS)
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Show environment
+        run: |
+          xcodebuild -version
+          xcodebuild -project MixPill.xcodeproj -list
+
+      # Compilation gate for both targets — the MixPill UI app and the
+      # bundled MixPillCore XPC service. Signing is disabled here; release
+      # signing and notarization happen outside CI with the Developer ID
+      # identity.
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project MixPill.xcodeproj \
+            -scheme MixPill \
+            -configuration Debug \
+            -destination "platform=macOS" \
+            -clonedSourcePackagesDirPath .spm \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            DEBUG_INFORMATION_FORMAT=dwarf
+
+      # The ring buffer and channel DSP carry no HAL or XPC dependency, so
+      # they can be exercised directly. Run under libgmalloc: both bugs
+      # these assertions were written for were heap overruns, and an
+      # overrun does not reliably crash on its own.
+      - name: DSP checks (guard malloc)
+        run: Tests/DSPChecks/run.sh --guard
+
+      # A string that never reaches the catalog can never be translated.
+      # Fail the build if the committed catalog is out of date.
+      - name: String catalog is up to date
+        run: |
+          cp Resources/Localizable.xcstrings /tmp/catalog-before.json
+          Tools/sync-strings.sh
+          if ! diff -q /tmp/catalog-before.json Resources/Localizable.xcstrings >/dev/null; then
+            echo "::error::Localizable.xcstrings is stale — run Tools/sync-strings.sh and commit the result."
+            diff /tmp/catalog-before.json Resources/Localizable.xcstrings || true
+            exit 1
+          fi

@@ -1,0 +1,493 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@" : {
+
+    },
+    "%@ audio controls" : {
+
+    },
+    "%@ is using the microphone" : {
+
+    },
+    "%@ plays on %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ plays on %2$@"
+          }
+        }
+      }
+    },
+    "%@ volume" : {
+
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%lld dB" : {
+
+    },
+    "%lld decibels" : {
+
+    },
+    "%lld percent" : {
+
+    },
+    "%lld%%" : {
+
+    },
+    "0 to 100 percent." : {
+
+    },
+    "100% On-Device & Private" : {
+
+    },
+    "5-Band Equalizer" : {
+
+    },
+    "Accessibility access needed" : {
+
+    },
+    "Add Rule" : {
+
+    },
+    "Add automation rule" : {
+
+    },
+    "Adjusts the gain of the %@ band" : {
+
+    },
+    "Adjusts the output volume of %@" : {
+
+    },
+    "Adjusts the overall output volume of MixPill" : {
+
+    },
+    "Application" : {
+
+    },
+    "Applies a preset and Smart Ducking setting while this Focus is on." : {
+
+    },
+    "Applies the selected preset when %@ launches." : {
+
+    },
+    "Apply ${preset}" : {
+
+    },
+    "Apply MixPill Preset" : {
+
+    },
+    "Automatically lowers other apps while VoIP audio is detected" : {
+
+    },
+    "Automation" : {
+
+    },
+    "Back" : {
+
+    },
+    "Blocks background applications from stealing keyboard focus" : {
+
+    },
+    "Bypasses all audio processing for this DAW" : {
+
+    },
+    "Check Now" : {
+
+    },
+    "Check for Updates Automatically" : {
+
+    },
+    "Choose the output device for each application. “System Default” follows the macOS default output." : {
+
+    },
+    "Continue" : {
+
+    },
+    "Create a rule that applies a preset when an app opens" : {
+
+    },
+    "Custom" : {
+
+    },
+    "DAW Direct bypass for %@" : {
+
+    },
+    "DAW Direct is off. Click to bypass EQ, noise gate and compression for minimum-latency monitoring." : {
+
+    },
+    "DAW Direct is on: EQ, noise gate and compression are bypassed. Click to process this app normally." : {
+
+    },
+    "Delete preset" : {
+
+    },
+    "Delete preset %@" : {
+
+    },
+    "Delete rule" : {
+
+    },
+    "Delete rule %@" : {
+
+    },
+    "Diagnostics" : {
+
+    },
+    "Disable %@" : {
+
+    },
+    "EQ band %@" : {
+
+    },
+    "Enable %@" : {
+
+    },
+    "Enable Global Hotkeys & Quick Gestures" : {
+
+    },
+    "Enabled" : {
+
+    },
+    "Equalizer & Noise Gate" : {
+
+    },
+    "Equalizer for %@" : {
+
+    },
+    "Equalizer preset" : {
+
+    },
+    "Focus Shield" : {
+
+    },
+    "Focus Shield is off: click to block background apps from stealing keyboard focus" : {
+
+    },
+    "Focus Shield is on: background apps cannot steal keyboard focus" : {
+
+    },
+    "General" : {
+
+    },
+    "Idle" : {
+
+    },
+    "Individual volume control for every app on your Mac — right from the menu bar." : {
+
+    },
+    "Launch MixPill automatically when you log into your Mac." : {
+
+    },
+    "Launch at Login" : {
+
+    },
+    "Lets you control volumes from any app using keyboard and scroll shortcuts" : {
+
+    },
+    "Listening for Audio" : {
+
+    },
+    "Load Preset" : {
+
+    },
+    "Looks once a day and only interrupts you when there is something to install." : {
+
+    },
+    "Master Volume" : {
+
+    },
+    "Master volume" : {
+
+    },
+    "MixPill" : {
+
+    },
+    "MixPill Settings… (⌘,)" : {
+
+    },
+    "MixPill is already mixing. Open it from the menu bar whenever you want to change something." : {
+
+    },
+    "MixPill is distributed directly rather than through the App Store, so it updates itself. Only a request for the update feed leaves your Mac — no usage data, ever." : {
+
+    },
+    "MixPill never asks for Accessibility access unless you turn hotkeys on." : {
+
+    },
+    "MixPill picks up an app as soon as it plays something. Start some audio and it will appear here." : {
+
+    },
+    "Mixing runs in a single real-time render pass; latency is the hardware I/O block plus the tiny channel ring, nothing more." : {
+
+    },
+    "Mute" : {
+
+    },
+    "Mute %@" : {
+
+    },
+    "Mute or Unmute App" : {
+
+    },
+    "Muted" : {
+
+    },
+    "No Automation Rules" : {
+
+    },
+    "No Eligible Apps" : {
+
+    },
+    "No Presets Saved" : {
+
+    },
+    "No apps available to route." : {
+
+    },
+    "No apps playing yet" : {
+
+    },
+    "Noise gate threshold" : {
+
+    },
+    "None" : {
+
+    },
+    "On a call — other apps duck while this one is speaking" : {
+
+    },
+    "Open System Settings" : {
+
+    },
+    "Opens the 5-band equalizer and noise gate" : {
+
+    },
+    "Opens the MixPill settings window" : {
+
+    },
+    "Output" : {
+
+    },
+    "Output device for %@" : {
+
+    },
+    "Output: %@" : {
+
+    },
+    "Pins %@ to a specific audio output device or channel pair" : {
+
+    },
+    "Play something in any app and it appears here with its own volume." : {
+
+    },
+    "Playing" : {
+
+    },
+    "Preset" : {
+
+    },
+    "Preset for %@" : {
+
+    },
+    "Presets" : {
+
+    },
+    "Quit MixPill" : {
+
+    },
+    "Quit MixPill (⌘Q)" : {
+
+    },
+    "Rebuilds every output engine and re-applies routing without restarting the app" : {
+
+    },
+    "Rebuilds the entire output graph and re-arms captures. Takes under a second; no app restart needed." : {
+
+    },
+    "Reduces audio delay for live monitoring and lip-synced video at slightly higher CPU usage" : {
+
+    },
+    "Reset Audio Engine" : {
+
+    },
+    "Restore a saved preset" : {
+
+    },
+    "Restores audio for %@" : {
+
+    },
+    "Restores every app's saved volume and mute state from one of your presets." : {
+
+    },
+    "Route %@ to %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Route %1$@ to %2$@"
+          }
+        }
+      }
+    },
+    "Route All" : {
+
+    },
+    "Route all apps to %@" : {
+
+    },
+    "Routing" : {
+
+    },
+    "Routing Matrix" : {
+
+    },
+    "Rules apply a preset automatically when an application launches. E.g., “When Spotify opens, set Profile to Music Mode.”" : {
+
+    },
+    "Save Preset" : {
+
+    },
+    "Save a preset first to create automation rules" : {
+
+    },
+    "Save presets from the menu bar popover to capture every app's volume and mute state." : {
+
+    },
+    "Save the current volume and mute state of all apps" : {
+
+    },
+    "Search" : {
+
+    },
+    "Search applications" : {
+
+    },
+    "Set ${app} muted to ${muted}" : {
+
+    },
+    "Set ${app} volume to ${percent}%" : {
+
+    },
+    "Set App Volume" : {
+
+    },
+    "Set MixPill Master Volume" : {
+
+    },
+    "Set MixPill Profile" : {
+
+    },
+    "Set MixPill master volume to ${percent}%" : {
+
+    },
+    "Set Smart Ducking" : {
+
+    },
+    "Set Smart Ducking to ${enabled}" : {
+
+    },
+    "Sets the level of the whole mix." : {
+
+    },
+    "Sets the volume of one application, without touching anything else." : {
+
+    },
+    "Settings" : {
+
+    },
+    "Shrinks both the capture and playback blocks. Lower delay, less headroom against dropouts." : {
+
+    },
+    "Silences %@" : {
+
+    },
+    "Silences audio below this level" : {
+
+    },
+    "Silences one application, or brings it back." : {
+
+    },
+    "Smart Ducking" : {
+
+    },
+    "Some audio couldn't be captured" : {
+
+    },
+    "Standard (256 frames) is ideal for background music and gaming with minimal CPU usage. Ultra-Low (128 frames) suits live video editing, podcast monitoring and lip-synced media. Mixing itself runs in a single real-time render pass with sub-block latency." : {
+
+    },
+    "Standard buffers capture generously so audio never breaks up, at about 20 ms of delay — right for music, video and games. Ultra-Low cuts that for live monitoring, but leaves the system less room to keep up and can click on busy machines or wide audio interfaces." : {
+
+    },
+    "Start Mixing" : {
+
+    },
+    "Starts MixPill automatically at login" : {
+
+    },
+    "Switches the hardware I/O block from 256 frames (~5 ms) to 128 frames (~3 ms)." : {
+
+    },
+    "That preset no longer exists. Save it again in MixPill." : {
+
+    },
+    "To give an app its own volume, MixPill receives that app's sound before it reaches your speakers, applies your settings, and plays it back. It asks for no permissions to do this — no screen recording, no microphone. Nothing is written to disk and nothing leaves your Mac." : {
+
+    },
+    "Turn MixPill on under Privacy & Security › Accessibility. This updates itself." : {
+      "comment" : "A message explaining that the user needs to enable Accessibility access in System Settings to use global hotkeys. It also mentions that the message will update itself once Accessibility access is enabled.",
+      "isCommentAutoGenerated" : true
+    },
+    "Turns automatic dipping of background apps during calls on or off." : {
+
+    },
+    "Ultra-Low Latency Mode" : {
+
+    },
+    "Unmute" : {
+
+    },
+    "Unmute %@" : {
+
+    },
+    "Volume" : {
+
+    },
+    "Waiting for audio" : {
+
+    },
+    "Welcome to MixPill" : {
+
+    },
+    "What MixPill does with your audio" : {
+
+    },
+    "When a VoIP app (Zoom, Teams, Discord, Webex, Slack) is actively producing audio, all other apps are smoothly reduced to 20% volume and restored when the call audio stops. Ducking runs inside the MixPillCore service, so it keeps working even when the popover is closed." : {
+
+    },
+    "You're Ready" : {
+
+    },
+    "^[%lld app](inflect: true) ready to mix" : {
+
+    },
+    "⌥ + Scroll adjusts the frontmost app's volume · ⌘⌥M mutes it — anywhere on your Mac, without opening the popover." : {
+
+    },
+    "⌥ Scroll over any window to adjust it · ⌘⌥M to mute" : {
+
+    }
+  },
+  "version" : "1.1"
+}

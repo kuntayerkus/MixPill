@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>MixPill</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>MixPill</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 MixPill</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>MixPill needs audio access so it can receive each app's sound before it reaches your speakers — that is what gives every app its own volume, EQ and mute.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MixPill mixes the audio other apps play. macOS files that permission alongside microphone access; MixPill never opens your microphone and never records you.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<!-- Served straight from the repository. GitHub Releases hosts the
+	     DMGs; this file lists them. Moving to a custom domain later means
+	     changing this one string and keeping the old URL redirecting, so
+	     already-installed copies keep finding updates. -->
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/kuntayerkus/MixPill/main/appcast.xml</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<!-- Public half of the EdDSA pair whose private key lives in the login
+	     keychain (service https://sparkle-project.org, account ed25519).
+	     Sparkle refuses any update this key does not verify, so losing the
+	     private key means losing the ability to ship updates to existing
+	     installs — back it up. -->
+	<key>SUPublicEDKey</key>
+	<string>Xgcn032oEKRW+i7hxA/vALfAiyu1/vaW9HNkg5DwIgA=</string>
+	<key>NSPrivacyPolicyURL</key>
+	<string>https://mixpill.app/privacy</string>
+</dict>
+</plist>

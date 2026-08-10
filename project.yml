@@ -1,0 +1,122 @@
+name: MixPill
+# English only today, but every user-facing string lives in
+# Resources/Localizable.xcstrings rather than in the source, so adding a
+# language is a translation pass and not a refactor.
+knownRegions:
+  - en
+  - Base
+options:
+  bundleIdPrefix: com.mixpill
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    # Direct distribution (Developer ID + notarization), not the Mac App
+    # Store. Neither target is sandboxed — see the entitlements files.
+    DEVELOPMENT_TEAM: CL4KZ4JZDQ
+    # English is the development language; the String Catalog carries the
+    # UI strings so adding a language is a translation job, not a refactor.
+    SWIFT_EMIT_LOC_STRINGS: YES
+packages:
+  # Auto-update. Direct distribution has no App Store to push fixes, so
+  # without this a shipped bug is permanent for everyone who already
+  # downloaded the app.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
+
+targets:
+  # ── MixPill (UI) ────────────────────────────────────────────────────────
+  # Menu bar interface only: status display and commands. All audio lives
+  # in MixPillCore; a UI crash never interrupts playback.
+  MixPill:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - App
+      - Models
+      - Services
+      - Shared
+      - Utilities
+      - Views
+      - path: Resources
+        buildPhase: resources
+        excludes:
+          - "Info.plist"
+          - "*.entitlements"
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    dependencies:
+      - target: MixPillCore
+        embed: true
+      - package: Sparkle
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mixpill.app
+        PRODUCT_NAME: MixPill
+        INFOPLIST_FILE: Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Resources/MixPill.entitlements
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        # `--deep` is explicitly discouraged by Apple and breaks notarization
+        # of nested code: each nested bundle must be signed on its own terms,
+        # which Xcode already does inside-out.
+        OTHER_CODE_SIGN_FLAGS: --options runtime
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "3.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        COMBINE_HIDPI_IMAGES: YES
+        SWIFT_COMPILATION_MODE: wholemodule
+        SWIFT_OPTIMIZATION_LEVEL: -O
+        DEAD_CODE_STRIPPING: YES
+        STRIP_STYLE: non-global-symbols
+        SWIFT_EXPLICIT_MODULE_BUILD: YES
+
+  # ── MixPillCore (XPC service) ───────────────────────────────────────────
+  # Owns CoreAudio process-tap capture, the zero-latency mixer,
+  # routing, ducking, and resilience. Keeps playing audio even when the
+  # UI quits or crashes.
+  MixPillCore:
+    type: xpc-service
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - Core
+      - Shared
+      - Utilities
+      - path: Core/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mixpill.core
+        PRODUCT_NAME: MixPillCore
+        INFOPLIST_FILE: Core/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Core/MixPillCore.entitlements
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        OTHER_CODE_SIGN_FLAGS: --options runtime
+        MARKETING_VERSION: "3.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SKIP_INSTALL: YES
+        SWIFT_COMPILATION_MODE: wholemodule
+        SWIFT_OPTIMIZATION_LEVEL: -O
+        DEAD_CODE_STRIPPING: YES
+        STRIP_STYLE: non-global-symbols
+        SWIFT_EXPLICIT_MODULE_BUILD: YES
+
+schemes:
+  MixPill:
+    build:
+      targets:
+        MixPill: all
+    run:
+      config: Debug
+    profile:
+      config: Release

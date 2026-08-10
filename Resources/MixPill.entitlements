@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Intentionally empty.
+
+	     MixPill is distributed directly (Developer ID + notarization), not
+	     through the Mac App Store, and is deliberately not sandboxed: global
+	     hotkeys and quick gestures depend on Accessibility, and the app has to
+	     drive the system default output device. Nothing it does needs an
+	     entitlement — the two permissions it uses, Screen & System Audio
+	     Recording and Accessibility, are TCC grants the user makes explicitly.
+
+	     Enabling App Sandbox here would also require reinstating
+	     `com.apple.security.inherit` in Core/MixPillCore.entitlements; the two
+	     files must agree. -->
+</dict>
+</plist>
