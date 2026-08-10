@@ -37,6 +37,12 @@ final class AudioProcessRegistry: @unchecked Sendable {
     }
 
     private let queue = DispatchQueue(label: "com.mixpill.core.processes", qos: .utility)
+    /// Marks `queue` so `currentProcesses` can tell whether it is already on
+    /// it. `onProcessesChanged` is delivered synchronously from `queue`, so
+    /// a handler that reads the list back — which is the obvious thing to
+    /// write — would otherwise `dispatch_sync` onto the queue it is already
+    /// running on, and libdispatch traps that rather than deadlocking.
+    private let queueKey = DispatchSpecificKey<UInt8>()
     private var processes: [AudioProcess] = []
     private var running = false
 
@@ -65,10 +71,14 @@ final class AudioProcessRegistry: @unchecked Sendable {
 
     init(excludedBundleIDs: Set<String>) {
         self.excludedBundleIDs = excludedBundleIDs
+        queue.setSpecific(key: queueKey, value: 1)
     }
 
     var currentProcesses: [AudioProcess] {
-        queue.sync { processes }
+        // Reading straight through is safe here: the queue is serial, so
+        // being on it already is exclusive access.
+        if DispatchQueue.getSpecific(key: queueKey) != nil { return processes }
+        return queue.sync { processes }
     }
 
     // MARK: - Lifecycle

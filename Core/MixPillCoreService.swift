@@ -68,7 +68,7 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
         discovery.onProcessesChanged = { [weak self] processes in
             guard let self else { return }
             self.ducking.updateCallParticipants(processes.filter(\.isCapturingInput).map(\.bundleID))
-            self.pushApps()
+            self.pushApps(processes)
             self.capture.sync(with: processes)
         }
 
@@ -131,9 +131,13 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
 
     /// Sends the current application list, stamped with whether the engine
     /// actually holds a tap on each one.
-    private func pushApps() {
+    ///
+    /// Callers that already hold a snapshot pass it in: the discovery
+    /// callback delivers one, and re-reading it there would mean asking the
+    /// discovery queue for a value while running on that very queue.
+    private func pushApps(_ processes: [AudioProcessRegistry.AudioProcess]? = nil) {
         let captured = capture.capturedBundleIDs
-        let apps = discovery.currentProcesses.map {
+        let apps = (processes ?? discovery.currentProcesses).map {
             CoreAppInfo(
                 bundleID: $0.bundleID,
                 name: $0.name,
