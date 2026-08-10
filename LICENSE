@@ -1,0 +1,34 @@
+MixPill
+
+Copyright (c) 2026 Kuntay Erkus. All rights reserved.
+
+This software and its source code are made publicly readable for reference
+and evaluation. They are not placed in the public domain and no open source
+licence is granted.
+
+You may:
+
+  - read the source, and build it for your own personal use on hardware you
+    own;
+  - quote short excerpts in reviews, articles, bug reports and teaching
+    material, with attribution.
+
+You may not, without prior written permission from the copyright holder:
+
+  - redistribute this software or any derivative of it, in source or binary
+    form, whether or not for a fee;
+  - publish a modified version, or ship any part of this source inside
+    another product;
+  - remove or alter this notice, the copyright notices in the source files,
+    or the application's own attribution.
+
+Contributions offered through pull requests are licensed to the copyright
+holder for use in this project without further obligation.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
