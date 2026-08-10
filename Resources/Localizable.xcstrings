@@ -123,10 +123,19 @@
     "DAW Direct bypass for %@" : {
 
     },
+    "DAW Direct for %@" : {
+
+    },
+    "DAW Direct is off, so this app is mixed like any other. Turn it on to hand the app back its own output path." : {
+
+    },
     "DAW Direct is off. Click to bypass EQ, noise gate and compression for minimum-latency monitoring." : {
 
     },
     "DAW Direct is on: EQ, noise gate and compression are bypassed. Click to process this app normally." : {
+
+    },
+    "DAW Direct is on: MixPill leaves this app completely alone, so its own outputs, routing and monitoring latency are untouched." : {
 
     },
     "Delete preset" : {
@@ -431,6 +440,9 @@
 
     },
     "Starts MixPill automatically at login" : {
+
+    },
+    "Stops MixPill capturing this app so its own routing and latency are unaffected" : {
 
     },
     "That preset no longer exists. Save it again in MixPill." : {
