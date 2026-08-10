@@ -207,6 +207,13 @@ xcrun stapler staple "$DMG"
 APPCAST="$ROOT/appcast.xml"
 GENERATE_APPCAST="$ROOT/.spm/artifacts/sparkle/Sparkle/bin/generate_appcast"
 echo "▸ Updating the Sparkle appcast"
+
+# The zip exists only to hand the app to the notary service; the disk image
+# is what gets published. generate_appcast scans this whole directory and
+# refuses the entire run — writing no feed at all — when two archives carry
+# the same bundle version: "Duplicate updates are not supported." So the
+# notarization vehicle goes away before the feed is built.
+rm -f "$ZIP"
 "$GENERATE_APPCAST" --download-url-prefix \
     "https://github.com/kuntayerkus/MixPill/releases/download/v$VERSION/" \
     -o "$APPCAST" "$BUILD"
