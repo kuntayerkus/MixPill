@@ -22,21 +22,10 @@ public final class ChannelConfigStore {
 
     // MARK: - DAW detection
 
-    /// Known DAW bundle identifier prefixes. Apps matching these get DAW
-    /// Direct bypass offered (and enabled by default) so monitoring runs
-    /// without any of our processing in the way.
-    private static let dawBundleIDPrefixes = [
-        "com.apple.logic",
-        "com.ableton.live",
-        "com.avid.protools",
-        "net.steinberg.cubase",
-        "com.image-line.flstudio",
-        "com.presonus.studioone"
-    ]
-
+    /// Detected DAWs default to DAW Direct, which leaves them untapped.
+    /// The list is shared with the engine — see `DAWDetection`.
     public static func isDAW(bundleID: String) -> Bool {
-        let lowered = bundleID.lowercased()
-        return dawBundleIDPrefixes.contains { lowered.hasPrefix($0) }
+        DAWDetection.isDAW(bundleID: bundleID)
     }
 
     // MARK: - Channel config assembly

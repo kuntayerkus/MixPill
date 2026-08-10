@@ -63,6 +63,41 @@ if [ ! -d "$APP" ]; then
     exit 1
 fi
 
+# ── Re-sign Sparkle's nested helpers ───────────────────────────────────────
+#
+# Sparkle ships as a binary framework through SPM, and the executables
+# buried inside it — Autoupdate, Updater.app and two XPC services — arrive
+# ad-hoc signed. Xcode signs inside-out, but only over code it built, so
+# those keep their ad-hoc signatures and notarization rejects the whole
+# submission with "The binary is not signed with a valid Developer ID
+# certificate" and "The signature does not include a secure timestamp".
+#
+# They have to be signed innermost-first: signing a container seals whatever
+# is inside it, so any later change to nested code invalidates the seal
+# above it.
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+if [ -d "$SPARKLE" ]; then
+    echo "▸ Re-signing Sparkle's nested code"
+    for nested in \
+        "$SPARKLE/Versions/B/XPCServices/Downloader.xpc" \
+        "$SPARKLE/Versions/B/XPCServices/Installer.xpc" \
+        "$SPARKLE/Versions/B/Updater.app" \
+        "$SPARKLE/Versions/B/Autoupdate" \
+        "$SPARKLE"
+    do
+        [ -e "$nested" ] || continue
+        codesign --force --timestamp --options runtime \
+            --sign "$IDENTITY" "$nested"
+    done
+
+    # Re-sealing the framework invalidates the app's own signature, so the
+    # outer bundle is signed again on top.
+    echo "▸ Re-signing the app over the updated framework"
+    codesign --force --timestamp --options runtime \
+        --entitlements "$ROOT/Resources/MixPill.entitlements" \
+        --sign "$IDENTITY" "$APP"
+fi
+
 # ── The update key must be right before anything else is worth doing ───────
 #
 # generate_appcast signs an update only when the archived app's
@@ -93,7 +128,25 @@ codesign --verify --deep --strict --verbose=2 "$APP"
 ZIP="$BUILD/$APP_NAME-$VERSION.zip"
 echo "▸ Submitting to Apple for notarization (this takes a few minutes)"
 ditto -c -k --keepParent "$APP" "$ZIP"
-xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+
+# `notarytool submit --wait` exits 0 even when the verdict is Invalid, so
+# the status has to be read out of its output. Without this the script
+# happily staples nothing and produces a DMG Gatekeeper will refuse.
+notarize() {
+    local target="$1"
+    local output
+    output=$(xcrun notarytool submit "$target" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1)
+    echo "$output"
+    if ! grep -q "status: Accepted" <<<"$output"; then
+        local submission
+        submission=$(grep -m1 "id:" <<<"$output" | awk '{print $2}')
+        echo "✗ Apple rejected $(basename "$target"). Reasons:" >&2
+        [ -n "$submission" ] && xcrun notarytool log "$submission" --keychain-profile "$NOTARY_PROFILE" >&2
+        exit 1
+    fi
+}
+
+notarize "$ZIP" 
 
 echo "▸ Stapling the ticket"
 xcrun stapler staple "$APP"
@@ -123,7 +176,7 @@ hdiutil create \
 # The disk image is signed too, so the download itself is trusted before it
 # is even opened.
 codesign --sign "$IDENTITY" --timestamp "$DMG"
-xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+notarize "$DMG"
 xcrun stapler staple "$DMG"
 
 SIZE=$(du -h "$DMG" | cut -f1)

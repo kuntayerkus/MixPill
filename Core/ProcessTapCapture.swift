@@ -45,6 +45,14 @@ final class ProcessTapCapture: @unchecked Sendable {
         /// Gain that undoes the stereo mixdown's averaging. 1.0 when the
         /// tap is already the device's native width.
         var mixdownCompensation: Float = 1
+        /// Host time of the previous IOProc call, and how many arrived
+        /// later than the clock allows. CoreAudio's overload notification
+        /// only fires when *it* notices; measuring the interval catches
+        /// every late block, including the ones it stays quiet about.
+        var lastCallbackHostTime: UInt64 = 0
+        let lateCallbacks = Atomic<Int>(0)
+        var expectedInterval: UInt64 = 0
+
         /// Latest metering, published lock-free.
         ///
         /// These used to go into a dictionary behind an `UnfairLock` that
@@ -140,9 +148,37 @@ final class ProcessTapCapture: @unchecked Sendable {
 
     // MARK: - Sync against discovery
 
+    /// Applications to leave completely alone — see `setExcluded`.
+    private var excluded: Set<String> = []
+
+    /// Applications that must not be tapped at all.
+    ///
+    /// This is what DAW Direct now means. Bypassing the DSP was never
+    /// enough: a tapped app is *muted at source* and replayed from the
+    /// stereo pair MixPill captured, which for a DAW means its monitoring
+    /// latency grows by the capture block, any hiccup here becomes a
+    /// dropout there, and any output beyond the captured pair is silenced
+    /// outright. A digital audio workstation on a 32-channel interface
+    /// wants none of that. Leaving it untapped gives it its own output
+    /// path back, exactly as if MixPill were not running.
+    func setExcluded(_ bundleIDs: Set<String>) {
+        let newlyExcluded = lock.withLock { () -> [String] in
+            let added = bundleIDs.subtracting(excluded)
+            excluded = bundleIDs
+            return Array(added.filter { taps[$0] != nil })
+        }
+        for bundleID in newlyExcluded {
+            stop(bundleID: bundleID)
+        }
+    }
+
     /// Aligns live taps with the set of applications we want captured.
     func sync(with processes: [AudioProcessRegistry.AudioProcess]) {
-        let desired = Dictionary(processes.map { ($0.bundleID, $0) }, uniquingKeysWith: { first, _ in first })
+        let skip = lock.withLock { excluded }
+        let wanted = processes.filter {
+            !skip.contains($0.bundleID) && !DAWDetection.isDAW(bundleID: $0.bundleID)
+        }
+        let desired = Dictionary(wanted.map { ($0.bundleID, $0) }, uniquingKeysWith: { first, _ in first })
         let active = lock.withLock { Set(taps.keys) }
 
         for bundleID in active.subtracting(desired.keys) {
@@ -170,6 +206,11 @@ final class ProcessTapCapture: @unchecked Sendable {
 
     var activeTapCount: Int {
         lock.withLock { taps.count }
+    }
+
+    /// Total late capture blocks across every tap.
+    var lateCallbackCount: Int {
+        lock.withLock { taps.values.reduce(0) { $0 + $1.lateCallbacks.load(ordering: .relaxed) } }
     }
 
     // MARK: - Tap lifecycle
@@ -280,16 +321,20 @@ final class ProcessTapCapture: @unchecked Sendable {
             kAudioAggregateDeviceSubDeviceListKey as String: [],
             kAudioAggregateDeviceTapListKey as String: [[
                 kAudioSubTapUIDKey as String: description.uuid.uuidString,
-                // Drift compensation off, deliberately.
+                // Drift compensation on, paired with the larger capture
+                // block below.
                 //
-                // This aggregate has no sub-devices — only the tap — so
-                // there is no second clock to drift against and nothing for
-                // the compensator to correct toward. Leaving it on made
-                // CoreAudio resynchronise periodically, which it reports as
-                // `kAudioDeviceProcessorOverload`: measured at roughly one
-                // dropout every 15 seconds on an idle machine (1.6% CPU),
-                // which is exactly the intermittent clicking being chased.
-                kAudioSubTapDriftCompensationKey as String: false,
+                // These two settings have to be chosen together. With the
+                // old 256-frame capture block, compensation resynchronised
+                // often enough to blow the deadline — one
+                // `kAudioDeviceProcessorOverload` roughly every 15 seconds.
+                // Turning it off cured that but let the tap's clock walk
+                // away from the output device's, which surfaced as the ring
+                // overflowing and discarding blocks: a different click for
+                // the same reason. A 1024-frame block gives compensation
+                // the room it needs, so the clocks stay locked and nothing
+                // is thrown away.
+                kAudioSubTapDriftCompensationKey as String: true,
             ]],
         ]
 
@@ -351,8 +396,23 @@ final class ProcessTapCapture: @unchecked Sendable {
             return
         }
 
+        // Record what the device actually gave us — the request can be
+        // clamped, and a block size we did not get is a block size we
+        // cannot reason about.
+        var actualFrames: UInt32 = 0
+        var actualSize = UInt32(MemoryLayout<UInt32>.size)
+        AudioObjectGetPropertyData(aggregateID, &frameAddress, 0, nil, &actualSize, &actualFrames)
+        if actualFrames > 0 {
+            var timebase = mach_timebase_info()
+            if mach_timebase_info(&timebase) == KERN_SUCCESS, timebase.numer > 0 {
+                let seconds = Double(actualFrames) / max(format.mSampleRate, 1)
+                let ticks = seconds * 1_000_000_000.0 * Double(timebase.denom) / Double(timebase.numer)
+                tap.expectedInterval = UInt64(ticks)
+            }
+        }
+
         report(available: true, reason: "")
-        MixPillCoreLog.log("ProcessTapCapture: tapped \(process.bundleID) — \(process.objectIDs.count) process object(s), \(Int(format.mSampleRate)) Hz, \(tap.sourceChannelCount) ch, ×\(tap.mixdownCompensation) compensation")
+        MixPillCoreLog.log("ProcessTapCapture: tapped \(process.bundleID) — \(process.objectIDs.count) process object(s), \(Int(format.mSampleRate)) Hz, \(tap.sourceChannelCount) ch, ×\(tap.mixdownCompensation) compensation, \(actualFrames == 0 ? captureBufferFrames : actualFrames)-frame blocks")
     }
 
     private func stop(bundleID: String) {
@@ -408,6 +468,19 @@ final class ProcessTapCapture: @unchecked Sendable {
     /// it to the ring. No allocation, no locks beyond two uncontended
     /// spins, no Obj-C.
     private func consume(_ inputData: UnsafePointer<AudioBufferList>, into tap: Tap) {
+        // Timing first: a block that arrives late is a gap in the audio
+        // whether or not anything downstream notices.
+        let now = mach_absolute_time()
+        if tap.lastCallbackHostTime != 0, tap.expectedInterval != 0 {
+            let elapsed = now &- tap.lastCallbackHostTime
+            // 1.8x leaves room for ordinary scheduling jitter while still
+            // catching a genuinely missed cycle.
+            if elapsed > tap.expectedInterval * 18 / 10 {
+                tap.lateCallbacks.add(1, ordering: .relaxed)
+            }
+        }
+        tap.lastCallbackHostTime = now
+
         let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inputData))
         guard buffers.count > 0 else { return }
 

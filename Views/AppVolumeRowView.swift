@@ -293,10 +293,10 @@ public struct AppVolumeRowView: View {
         .symbolEffect(.bounce, value: isDawDirect)
         .animation(Constants.Motion.spring, value: isDawDirect)
         .help(isDawDirect
-            ? "DAW Direct is on: EQ, noise gate and compression are bypassed. Click to process this app normally."
-            : "DAW Direct is off. Click to bypass EQ, noise gate and compression for minimum-latency monitoring.")
-        .accessibilityLabel("DAW Direct bypass for \(app.name)")
-        .accessibilityHint("Bypasses all audio processing for this DAW")
+            ? "DAW Direct is on: MixPill leaves this app completely alone, so its own outputs, routing and monitoring latency are untouched."
+            : "DAW Direct is off, so this app is mixed like any other. Turn it on to hand the app back its own output path.")
+        .accessibilityLabel("DAW Direct for \(app.name)")
+        .accessibilityHint("Stops MixPill capturing this app so its own routing and latency are unaffected")
     }
 
     private var speakerIconName: String {

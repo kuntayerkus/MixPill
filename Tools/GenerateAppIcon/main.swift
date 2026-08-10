@@ -309,7 +309,8 @@ let menuBarDirectory = URL(fileURLWithPath: arguments[2])
 try FileManager.default.createDirectory(at: menuBarDirectory, withIntermediateDirectories: true)
 
 var menuBarEntries: [[String: String]] = []
-for scale in 1...3 {
+// macOS displays are 1x or 2x; a 3x entry is an unassigned child.
+for scale in 1...2 {
     let filename = "menubar\(scale == 1 ? "" : "@\(scale)x").png"
     guard let image = renderMenuBarGlyph(size: CGFloat(16 * scale)) else {
         FileHandle.standardError.write(Data("failed to render menu bar glyph @\(scale)x\n".utf8))

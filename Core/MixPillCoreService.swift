@@ -24,6 +24,9 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
     private var meterDisplayActive = false
     private var ringHealthTimer: DispatchSourceTimer?
     private var lastRingHealth: (underruns: Int, drops: Int) = (0, 0)
+    private var lastLateCallbacks = 0
+    /// Bundle identifiers the UI has put on DAW Direct.
+    private var untappedBundleIDs: Set<String> = []
 
     /// Ducking needs a steady pulse whether or not anyone is looking; the
     /// meters need enough frames to look like meters. 10 Hz costs nothing
@@ -162,8 +165,13 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
             let underruns = health.underruns - self.lastRingHealth.underruns
             let drops = health.drops - self.lastRingHealth.drops
             self.lastRingHealth = health
-            if underruns > 0 || drops > 0 {
-                MixPillCoreLog.log("RingHealth: \(underruns) underrun(s), \(drops) drop(s) in the last 5 s")
+            let late = self.capture.lateCallbackCount - self.lastLateCallbacks
+            self.lastLateCallbacks += late
+            if underruns > 0 || drops > 0 || late > 0 {
+                MixPillCoreLog.log("Health: \(late) late capture block(s), \(underruns) underrun(s), \(drops) drop(s) in the last 5 s")
+                for entry in self.mixer.ringDetail() where entry.drops > 0 || entry.underruns > 0 {
+                    MixPillCoreLog.log("  \(entry.bundleID): \(entry.filled)/\(entry.capacity) frames buffered, rendered=\(entry.rendered), \(entry.underruns) underrun / \(entry.drops) drop total")
+                }
             }
         }
         timer.resume()
@@ -262,6 +270,8 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
             for channel in config.channels {
                 self.mixer.applyChannel(channel)
             }
+            self.untappedBundleIDs = Set(config.channels.filter(\.processingBypassed).map(\.bundleID))
+            self.capture.setExcluded(self.untappedBundleIDs)
 
             // Strips may have arrived after their taps did, so re-run the
             // sync: it is idempotent, and this is the point where the
@@ -276,6 +286,18 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
         guard let config = MixPillCoder.decode(ChannelConfig.self, from: data) else { return }
         queue.async {
             self.mixer.applyChannel(config)
+
+            // DAW Direct means "do not touch this app at all", so a change
+            // to it has to reach the capture layer, not just the DSP.
+            let wasUntapped = self.untappedBundleIDs.contains(config.bundleID)
+            guard wasUntapped != config.processingBypassed else { return }
+            if config.processingBypassed {
+                self.untappedBundleIDs.insert(config.bundleID)
+            } else {
+                self.untappedBundleIDs.remove(config.bundleID)
+            }
+            self.capture.setExcluded(self.untappedBundleIDs)
+            self.capture.sync(with: self.discovery.currentProcesses)
         }
     }
 

@@ -55,6 +55,10 @@ targets:
       - target: MixPillCore
         embed: true
       - package: Sparkle
+      # Linking it explicitly is what makes appintentsmetadataprocessor run;
+      # without it the archive ships with no Shortcuts metadata and the app
+      # is invisible to Shortcuts, Spotlight and Focus filters.
+      - sdk: AppIntents.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mixpill.app
@@ -75,7 +79,6 @@ targets:
         SWIFT_COMPILATION_MODE: wholemodule
         SWIFT_OPTIMIZATION_LEVEL: -O
         DEAD_CODE_STRIPPING: YES
-        STRIP_STYLE: non-global-symbols
         SWIFT_EXPLICIT_MODULE_BUILD: YES
 
   # ── MixPillCore (XPC service) ───────────────────────────────────────────
@@ -108,7 +111,6 @@ targets:
         SWIFT_COMPILATION_MODE: wholemodule
         SWIFT_OPTIMIZATION_LEVEL: -O
         DEAD_CODE_STRIPPING: YES
-        STRIP_STYLE: non-global-symbols
         SWIFT_EXPLICIT_MODULE_BUILD: YES
 
 schemes:

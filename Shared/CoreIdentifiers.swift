@@ -19,6 +19,39 @@ public enum MixPillXPC {
 }
 
 
+/// Applications MixPill must never capture.
+///
+/// A tapped app is muted at source and re-played from the stereo pair
+/// MixPill captured. For a digital audio workstation that is destructive:
+/// its monitoring latency grows by the capture block, its multi-output
+/// routing is silenced, and any hiccup in MixPill becomes a dropout in a
+/// recording session.
+///
+/// The list lives here rather than in the interface because the engine has
+/// to act on it the moment a process appears — waiting for the UI to send
+/// a channel configuration would mean tapping a DAW for the first second
+/// of its life, which is exactly when someone is likely to be recording.
+public enum DAWDetection {
+    private static let bundleIDPrefixes = [
+        "com.apple.logic",
+        "com.ableton.live",
+        "com.avid.protools",
+        "net.steinberg.cubase",
+        "net.steinberg.nuendo",
+        "com.image-line.flstudio",
+        "com.presonus.studioone",
+        "com.bitwig.bitwigstudio",
+        "com.reaper.reaper",
+        "com.cockos.reaper",
+        "com.apple.garageband"
+    ]
+
+    public static func isDAW(bundleID: String) -> Bool {
+        let lowered = bundleID.lowercased()
+        return bundleIDPrefixes.contains { lowered.hasPrefix($0) }
+    }
+}
+
 /// Canonical processing format constants shared by capture, resampling and
 /// the mixer. The pipeline speaks Float32 stereo everywhere; the rate
 /// snaps to the connected interface's clock (48 kHz until detected).

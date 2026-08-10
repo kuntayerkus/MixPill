@@ -54,3 +54,14 @@ playground.xcworkspace
 # in version control.
 *.dmg
 *.xcarchive
+
+# Signing material. A .cer is only the public certificate, but a .p12 or a
+# .key is the private half — publishing one would let anyone sign software
+# as you. None of it belongs in a repository, so the whole class is ignored
+# rather than relying on remembering which is which.
+*.cer
+*.p12
+*.pem
+*.key
+*.certSigningRequest
+*.mobileprovision

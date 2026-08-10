@@ -766,6 +766,22 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
         }
     }
 
+    /// Per-app ring state, for working out *which* channel is misbehaving
+    /// rather than that some channel is.
+    func ringDetail() -> [(bundleID: String, underruns: Int, drops: Int, filled: Int, capacity: Int, rendered: Bool)] {
+        queue.sync {
+            let rendered = Set(engines.values.flatMap { engine -> [ObjectIdentifier] in
+                let list = engine.stripList.load()
+                return (0..<list.count).map { ObjectIdentifier(list[$0].takeUnretainedValue()) }
+            })
+            return allStrips().map { strip in
+                (strip.bundleID, strip.ring.underruns, strip.ring.drops,
+                 strip.ring.availableFrames, strip.ring.capacity,
+                 rendered.contains(ObjectIdentifier(strip)))
+            }
+        }
+    }
+
     func diagnostics() -> (ioBufferFrames: Int, latencyMS: Double, ringCapacityFrames: Int, healthy: Bool) {
         queue.sync {
             let frames = engines[.systemDefault]?.ioBufferFrames ?? requestedBufferFrames

@@ -73,9 +73,11 @@ app and the music keeps playing with the last configuration it received.
   core service, so it keeps working with the interface closed.
 - **Routing matrix.** Pin any app to any output device, or to a specific
   channel pair (Outputs 1-2, 3-4, …) on multi-channel interfaces.
-- **DAW Direct Bypass.** Logic Pro, Ableton Live, Pro Tools, Cubase, FL
-  Studio and Studio One are detected automatically and run with all
-  processing bypassed.
+- **DAW Direct.** Logic Pro, Ableton Live, Pro Tools, Cubase, FL Studio
+  and Studio One are detected automatically and left **completely
+  untapped** — MixPill does not capture, mute or re-play them. A DAW keeps
+  its own monitoring latency, its own multi-output routing and its own
+  buffer size, exactly as if MixPill were not installed.
 - **Survives the world changing.** Sleep/wake, `coreaudiod` restarts,
   device hot-plug and sample-rate changes all rebuild the engine in
   place.
@@ -253,7 +255,8 @@ ever run the tool by hand, check the output contains
   guessed at.
 - An app tapped by MixPill is muted at source, so an application routing
   to several output pairs at once has the pairs MixPill does not replay
-  silenced. Leave those on DAW Direct.
+  silenced. Known DAWs are excluded automatically; anything else with
+  multi-output routing should be switched to DAW Direct by hand.
 - While a tap is open the app is muted at the system level, which means
   its audio is subject to MixPill being alive to re-play it. The core
   service is deliberately separate from the UI for exactly this reason,
