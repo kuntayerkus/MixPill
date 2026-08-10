@@ -17,6 +17,9 @@ public struct MenuBarView: View {
     @State private var selectedID: String?
     @State private var isNamingPreset = false
     @State private var presetName = ""
+    /// The list's own measured height, which is what the popover reserves
+    /// for it. Starts at the floor so the first frame is not a sliver.
+    @State private var contentHeight: CGFloat = MenuBarView.minimumListHeight
 
     private var playingIDs: Set<String> {
         Set(discoveryService.availableApps.filter(\.isPlaying).map(\.id))
@@ -108,20 +111,21 @@ public struct MenuBarView: View {
             Spacer()
 
             Button(action: toggleFocusShield) {
-                Image(systemName: FocusShieldManager.shared.isShieldActive ? "shield.fill" : "shield")
+                Image(systemName: focusShieldSymbol)
                     .symbolRenderingMode(.hierarchical)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(FocusShieldManager.shared.isShieldActive ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(focusShieldTint)
                     .frame(width: Constants.UI.controlHeight, height: Constants.UI.controlHeight)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .symbolEffect(.bounce, value: FocusShieldManager.shared.isShieldActive)
             .contentTransition(.symbolEffect(.replace))
-            .help(FocusShieldManager.shared.isShieldActive
-                ? "Focus Shield is on: background apps cannot steal keyboard focus"
-                : "Focus Shield is off: click to block background apps from stealing keyboard focus")
+            .help(focusShieldHelp)
             .accessibilityLabel("Focus Shield")
+            .accessibilityValue(FocusShieldManager.shared.isAwaitingPermission
+                ? "Waiting for Accessibility permission"
+                : (FocusShieldManager.shared.isShieldActive ? "On" : "Off"))
             .accessibilityHint("Blocks background applications from stealing keyboard focus")
 
             Button(action: openSettings) {
@@ -252,8 +256,16 @@ public struct MenuBarView: View {
                             }
                         }
                     }
+                    // Measured rather than estimated. The alternative is a
+                    // per-row height constant, and a constant like that is
+                    // wrong the first time anybody adds a control to a row.
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { height in
+                        contentHeight = height
+                    }
                 }
-                .frame(maxHeight: listHeight)
+                .frame(height: listHeight)
                 .focusable(!discoveryService.availableApps.isEmpty)
                 .focused($listFocused)
                 .onMoveCommand { direction in
@@ -267,12 +279,25 @@ public struct MenuBarView: View {
         .padding(Constants.UI.edgePadding)
     }
 
-    /// Grows with the list instead of pinning every window to 320 pt, and
-    /// stops well short of the screen so the popover never becomes a wall.
+    /// Grows with the list, and stops well short of the screen so the
+    /// popover never becomes a wall.
+    ///
+    /// A **definite** height, not a `maxHeight`. A maximum is a ceiling and
+    /// nothing else: it never asks for the space, and a `ScrollView` reports
+    /// almost no height of its own along its scroll axis, so the popover
+    /// sized itself to everything *except* the list and then handed the
+    /// leftovers over. With a header, a search field, a master fader and a
+    /// button row taking their share first, the leftovers were about a
+    /// hundred points — one row, clipped, with four apps hidden behind a
+    /// scrollbar in a window that had room for all of them.
     private var listHeight: CGFloat {
-        let rows = max(1, visibleApps.count) + (idleIDs.isEmpty ? 0 : 1)
-        return min(max(150, CGFloat(rows) * 78), 460)
+        min(max(contentHeight, Self.minimumListHeight), Self.maximumListHeight)
     }
+
+    /// Enough for the empty state's icon and its sentence.
+    private static let minimumListHeight: CGFloat = 150
+    /// Past this the popover stops growing and the list starts scrolling.
+    private static let maximumListHeight: CGFloat = 460
 
     @ViewBuilder
     private func row(for app: Binding<AudioAppModel>) -> some View {
@@ -327,7 +352,24 @@ public struct MenuBarView: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: Constants.UI.interElementSpacing) {
             VStack(alignment: .leading, spacing: 4) {
-                SettingsSectionHeader("Master Volume")
+                HStack(spacing: 6) {
+                    SettingsSectionHeader("Master Volume")
+                    Spacer(minLength: 0)
+                    if coreBridge.limiterReductionDB > Constants.UI.limiterVisibleDB {
+                        limiterBadge
+                    } else {
+                        // Where the fader ends, said out loud. A ceiling
+                        // you only discover by hitting it reads as a fault.
+                        Text("0 dB max")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .animation(
+                    Constants.Motion.spring,
+                    value: coreBridge.limiterReductionDB > Constants.UI.limiterVisibleDB
+                )
 
                 HStack(spacing: Constants.UI.interElementSpacing) {
                     Button(action: toggleMasterMute) {
@@ -346,14 +388,23 @@ public struct MenuBarView: View {
                     // Same dB taper as the channel faders, but without the
                     // boost region: the master sits after the sum, so
                     // pushing it above unity only feeds the limiter.
+                    //
+                    // That ceiling used to be invisible, which made it look
+                    // like a bug — the fader reached the end and the sound
+                    // stopped getting louder, with nothing on screen saying
+                    // it was ever going to. Adding boost here would be the
+                    // worse fix: it would move, and it would not work. So
+                    // the ceiling is stated instead, and pointed at the
+                    // place where boost actually exists.
                     Slider(value: Binding(
                         get: { AudioScale.position(forGain: masterVolume, allowBoost: false) },
                         set: { masterVolume = AudioScale.gain(forPosition: $0, allowBoost: false) }
                     ), in: 0.0...1.0)
                     .disabled(isMasterMuted)
+                    .help("The master tops out at 0 dB — it sits after the mix, so raising it past unity would only feed the limiter. To make one app louder than the rest, push its own fader past unity.")
                     .accessibilityLabel("Master volume")
                     .accessibilityValue("\(AudioScale.faderLabel(forGain: masterVolume)), \(AudioScale.percentOfUnity(forGain: masterVolume)) percent")
-                    .accessibilityHint("Adjusts the overall output volume of MixPill")
+                    .accessibilityHint("Adjusts the overall output volume of MixPill. Maximum is 0 decibels; boost above unity is on each app's own fader.")
 
                     Text(isMasterMuted ? "Muted" : AudioScale.faderLabel(forGain: masterVolume))
                         .font(.system(size: 11, weight: .medium))
@@ -448,6 +499,31 @@ public struct MenuBarView: View {
         .animation(Constants.Motion.spring, value: MixerUndoManager.shared.canUndo)
     }
 
+    /// The limiter, when it is doing something.
+    ///
+    /// Shown next to the master because it answers the one question the
+    /// stage otherwise raises silently: a channel pushed into boost on
+    /// already-loud material gets quieter treatment, not more loudness, and
+    /// without this the fader simply looks broken.
+    private var limiterBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "arrow.down.forward.and.arrow.up.backward")
+                .font(.system(size: 9, weight: .semibold))
+            Text(String(format: "−%.1f dB", coreBridge.limiterReductionDB))
+                .font(.system(size: 10, weight: .medium))
+                .monospacedDigit()
+        }
+        .foregroundStyle(Color.orange)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.orange.opacity(0.12), in: Capsule())
+        .help("The mix is already at full scale, so MixPill is holding it back by this much. Turning a channel up further makes it louder than the others, not louder overall.")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Limiter active")
+        .accessibilityValue(String(format: "reducing the mix by %.1f decibels", coreBridge.limiterReductionDB))
+        .transition(.opacity)
+    }
+
     private var masterVolumeIconName: String {
         let position = AudioScale.position(forGain: masterVolume, allowBoost: false)
         if position <= 0 { return "speaker.slash.fill" }
@@ -518,8 +594,38 @@ public struct MenuBarView: View {
         NSApp.sendAction(#selector(AppDelegate.openSettingsWindow), to: nil, from: nil)
     }
 
+    /// The shield has three states, and an on/off glyph could only show
+    /// two. The third — asked for, waiting on macOS — is the one that used
+    /// to look like a switch that refused to move.
+    private var focusShieldSymbol: String {
+        if FocusShieldManager.shared.isAwaitingPermission { return "exclamationmark.shield" }
+        return FocusShieldManager.shared.isShieldActive ? "shield.fill" : "shield"
+    }
+
+    private var focusShieldTint: Color {
+        if FocusShieldManager.shared.isAwaitingPermission { return .orange }
+        return FocusShieldManager.shared.isShieldActive ? Color.accentColor : Color.secondary
+    }
+
+    /// `LocalizedStringKey`, not `String`: `.help(someString)` is the
+    /// *non-localizing* overload, and moving these three lines behind a
+    /// property would otherwise have quietly dropped two of them out of the
+    /// String Catalog — translations included.
+    private var focusShieldHelp: LocalizedStringKey {
+        if FocusShieldManager.shared.isAwaitingPermission {
+            return "Focus Shield is waiting for permission. Allow MixPill in System Settings › Privacy & Security › Accessibility and it turns itself on. Click to cancel."
+        }
+        return FocusShieldManager.shared.isShieldActive
+            ? "Focus Shield is on: background apps cannot steal keyboard focus"
+            : "Focus Shield is off: click to block background apps from stealing keyboard focus"
+    }
+
     private func toggleFocusShield() {
-        FocusShieldManager.shared.setActive(!FocusShieldManager.shared.isShieldActive)
+        let shield = FocusShieldManager.shared
+        // A pending request already reads as "on" to the user, so a click
+        // withdraws it rather than asking macOS a question it has been
+        // asked once and will not answer twice.
+        shield.setActive(!(shield.isShieldActive || shield.isAwaitingPermission))
     }
 
     private func quitApp() {

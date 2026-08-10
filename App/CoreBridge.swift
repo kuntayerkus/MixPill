@@ -27,6 +27,12 @@ public final class CoreBridge: NSObject {
     var onLevels: ((_ payload: LevelsPayload) -> Void)?
     /// Non-nil while the core cannot capture; carries the reason to show.
     public private(set) var captureProblem: String?
+    /// Gain the output limiter is currently holding back, in dB.
+    ///
+    /// Surfaced next to the master fader because it is the answer to the
+    /// only complaint a limiter ever causes: the fader went up and the
+    /// loudness did not. Zero whenever the limiter is idle.
+    public private(set) var limiterReductionDB: Float = 0
     var onRecovery: ((_ reason: String, _ date: Date) -> Void)?
 
     private var connection: NSXPCConnection?
@@ -228,6 +234,7 @@ extension CoreBridge: MixPillCoreEventsProtocol {
     nonisolated public func levelsChanged(_ data: Data) {
         guard let payload = MixPillCoder.decode(LevelsPayload.self, from: data) else { return }
         Task { @MainActor in
+            self.limiterReductionDB = payload.limiterReductionDB
             self.onLevels?(payload)
         }
     }

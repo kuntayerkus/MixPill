@@ -22,6 +22,14 @@ public final class FocusShieldManager {
 
     public private(set) var isShieldActive: Bool = false
 
+    /// The user has asked for the shield and macOS has not granted
+    /// Accessibility yet.
+    ///
+    /// A state of its own, because "off" and "asked for but not permitted"
+    /// need different words on screen and different behaviour on the next
+    /// launch. Without it the switch bounced back with no explanation.
+    public private(set) var isAwaitingPermission: Bool = false
+
     /// Activations with no user input in this window are treated as steals.
     private static let stealQuietPeriod: TimeInterval = 0.75
     /// Ignore activation events briefly after our own restore to avoid a
@@ -42,38 +50,73 @@ public final class FocusShieldManager {
     /// permission prompt unless the user toggles the shield manually.
     public func restoreState() {
         let stored = UserDefaults.standard.bool(forKey: Constants.StorageKeys.focusShieldEnabled)
-        guard stored, AXIsProcessTrusted() else { return }
+        guard stored else { return }
+        guard AXIsProcessTrusted() else {
+            // Asked for, not permitted — say so rather than quietly
+            // presenting an off switch the user already turned on.
+            isAwaitingPermission = true
+            return
+        }
         startMonitoring()
         isShieldActive = true
     }
 
     /// User-facing switch from the menu bar. Only code path allowed to
     /// raise the Accessibility prompt.
+    ///
+    /// `AXIsProcessTrustedWithOptions` answers for *this instant* and then
+    /// puts the prompt on screen; it cannot report what the user is about
+    /// to do in System Settings, and it never returns `true` on the call
+    /// that asks. Treating that `false` as the user's answer was the bug:
+    /// the preference was rewritten to `false`, and `refreshTrust` — which
+    /// requires it to be `true` — could then never turn the shield on. The
+    /// permission was granted, and nothing in MixPill was left that could
+    /// notice.
+    ///
+    /// So the request is recorded first and the grant is waited for.
     public func setActive(_ active: Bool) {
-        if active {
-            // Literal value of kAXTrustedCheckOptionPrompt; the global var
-            // itself is shared mutable state, rejected by Swift 6.
-            let options: NSDictionary = ["AXTrustedCheckOptionPrompt": true]
-            guard AXIsProcessTrustedWithOptions(options) else {
-                isShieldActive = false
-                UserDefaults.standard.set(false, forKey: Constants.StorageKeys.focusShieldEnabled)
-                return
-            }
-            startMonitoring()
-        } else {
+        guard active else {
             stopMonitoring()
+            isShieldActive = false
+            isAwaitingPermission = false
+            UserDefaults.standard.set(false, forKey: Constants.StorageKeys.focusShieldEnabled)
+            return
         }
-        isShieldActive = active
-        UserDefaults.standard.set(active, forKey: Constants.StorageKeys.focusShieldEnabled)
+
+        UserDefaults.standard.set(true, forKey: Constants.StorageKeys.focusShieldEnabled)
+
+        // Literal value of kAXTrustedCheckOptionPrompt; the global var
+        // itself is shared mutable state, rejected by Swift 6.
+        let options: NSDictionary = ["AXTrustedCheckOptionPrompt": true]
+        guard AXIsProcessTrustedWithOptions(options) else {
+            isShieldActive = false
+            isAwaitingPermission = true
+            // The prompt appears once and macOS sends nothing when the
+            // grant lands, so borrow the poll the hotkeys already run.
+            GlobalHotkeyManager.shared.startWatchingForTrust()
+            MixPillLog.log("FocusShield: waiting for Accessibility permission")
+            return
+        }
+
+        isAwaitingPermission = false
+        startMonitoring()
+        isShieldActive = true
     }
 
     /// Re-checks trust when the app regains focus after the user granted
-    /// Accessibility permission in System Settings.
+    /// Accessibility permission in System Settings, or when the hotkey
+    /// manager's trust poll ticks.
     public func refreshTrust() {
         let stored = UserDefaults.standard.bool(forKey: Constants.StorageKeys.focusShieldEnabled)
-        guard stored, !isShieldActive, AXIsProcessTrusted() else { return }
+        guard stored, !isShieldActive else { return }
+        guard AXIsProcessTrusted() else {
+            isAwaitingPermission = true
+            return
+        }
+        isAwaitingPermission = false
         startMonitoring()
         isShieldActive = true
+        MixPillLog.log("FocusShield: Accessibility granted; the shield is on")
     }
 
     // MARK: - Monitoring

@@ -46,6 +46,24 @@ final class AudioProcessRegistry: @unchecked Sendable {
     private var processes: [AudioProcess] = []
     private var running = false
 
+    /// Sweeps still owed while the first one comes back empty.
+    ///
+    /// An empty result is the one answer this class cannot leave standing.
+    /// It matches the empty list already held, so nothing is published, and
+    /// the only other thing that starts a sweep is an application *changing*
+    /// whether it plays — which an app that was already playing when
+    /// MixPill launched never does. One empty sweep at the wrong moment
+    /// therefore means capturing nothing at all, indefinitely.
+    ///
+    /// Nothing has been observed producing that empty sweep: the whole
+    /// enumeration, Launch Services lookups included, measures at 85 ms
+    /// from a cold process. This is a guard against a state with no exit,
+    /// not a fix for a diagnosed fault, and it is cheap precisely because
+    /// it only ever runs when the answer was empty.
+    private var settleRetries = 0
+    /// Roughly ten seconds of retries in total.
+    private static let maximumSettleRetries = 6
+
     /// Listener blocks per audio process object, keyed by selector.
     ///
     /// Kept rather than a bare id set because
@@ -165,9 +183,30 @@ final class AudioProcessRegistry: @unchecked Sendable {
             return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
         }
 
+        // Sweep again rather than wait for an event that may never arrive.
+        if discovered.isEmpty {
+            scheduleSettleRetry()
+        } else {
+            settleRetries = 0
+        }
+
         guard discovered != processes else { return }
+        // The one line that separates "MixPill cannot see your app" from
+        // "MixPill sees it and cannot tap it" — two failures that look
+        // identical from outside and have nothing in common inside.
+        MixPillCoreLog.log("AudioProcessRegistry: \(liveObjectIDs.count) audio process object(s) resolve to \(discovered.count) application(s): \(discovered.map(\.bundleID).sorted().joined(separator: ", "))")
         processes = discovered
         onProcessesChanged?(discovered)
+    }
+
+    /// Queues another sweep with a widening delay. Runs on `queue`.
+    private func scheduleSettleRetry() {
+        guard settleRetries < Self.maximumSettleRetries else { return }
+        let delay = 0.25 * pow(2.0, Double(settleRetries))
+        settleRetries += 1
+        queue.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.refreshLocked()
+        }
     }
 
     /// Resolves the application a given audio process belongs to, or nil

@@ -23,8 +23,11 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
     private var uiConnected = false
     private var meterDisplayActive = false
     private var ringHealthTimer: DispatchSourceTimer?
-    private var lastRingHealth: (underruns: Int, drops: Int) = (0, 0)
+    private var lastRingHealth: (underruns: Int, starvations: Int, drops: Int, resyncs: Int) = (0, 0, 0, 0)
     private var lastLateCallbacks = 0
+    /// Last limiter reduction the interface was told about, so a steady
+    /// meter is not re-sent ten times a second. Service queue.
+    private var lastSentLimiterReduction: Float = 0
     /// What the interface has said about each channel's DAW Direct state.
     /// Absence matters as much as the value: an app that is not in here has
     /// not been described yet, and a recognised DAW stays untapped until it
@@ -214,9 +217,14 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
         timer.resume()
     }
 
-    /// Reports ring underruns and drops once every 5 seconds while they are
-    /// happening. Both are audible as clicks, and a rate is far more useful
-    /// than a total when chasing one down.
+    /// Reports ring faults once every 5 seconds while they are happening.
+    /// A rate is far more useful than a total when chasing one down.
+    ///
+    /// Resyncs are reported alongside them without being one. A resync is
+    /// the occupancy controller doing its job, and a handful per hour is
+    /// what healthy clock drift looks like — but several per minute means
+    /// something upstream keeps stalling the IO cycle, and that is exactly
+    /// the shape of fault this line exists to make visible.
     private func startRingHealthProbe() {
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + 5, repeating: 5)
@@ -224,14 +232,16 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
             guard let self else { return }
             let health = self.mixer.ringHealth()
             let underruns = health.underruns - self.lastRingHealth.underruns
+            let starvations = health.starvations - self.lastRingHealth.starvations
             let drops = health.drops - self.lastRingHealth.drops
+            let resyncs = health.resyncs - self.lastRingHealth.resyncs
             self.lastRingHealth = health
             let late = self.capture.lateCallbackCount - self.lastLateCallbacks
             self.lastLateCallbacks += late
-            if underruns > 0 || drops > 0 || late > 0 {
-                MixPillCoreLog.log("Health: \(late) late capture block(s), \(underruns) underrun(s), \(drops) drop(s) in the last 5 s")
-                for entry in self.mixer.ringDetail() where entry.drops > 0 || entry.underruns > 0 {
-                    MixPillCoreLog.log("  \(entry.bundleID): \(entry.filled)/\(entry.capacity) frames buffered, rendered=\(entry.rendered), \(entry.underruns) underrun / \(entry.drops) drop total")
+            if underruns > 0 || starvations > 0 || drops > 0 || late > 0 || resyncs > 0 {
+                MixPillCoreLog.log("Health: \(late) late capture block(s), \(starvations) starved read(s), \(underruns) underrun(s), \(drops) drop(s), \(resyncs) resync(s) in the last 5 s")
+                for entry in self.mixer.ringDetail() where entry.drops > 0 || entry.underruns > 0 || entry.starvations > 0 || entry.resyncs > 0 {
+                    MixPillCoreLog.log("  \(entry.bundleID): \(entry.filled)/\(entry.capacity) frames buffered (avg \(entry.average), target \(entry.target), rate \(entry.ppm >= 0 ? "+" : "")\(entry.ppm) ppm, primed=\(entry.primed)), rendered=\(entry.rendered), \(entry.starvations) starved / \(entry.underruns) underrun / \(entry.drops) drop / \(entry.resyncs) resync total")
                 }
             }
         }
@@ -289,8 +299,17 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
         }
         lastSentLevels = lastSentLevels.filter { live.contains($0.key) }
 
-        guard !changed.isEmpty else { return }
-        if let data = MixPillCoder.encode(LevelsPayload(samples: changed)) {
+        // The limiter has to be able to move this message on its own.
+        // Capture meters the tap *before* the channel strip, so pushing a
+        // fader into boost changes what the limiter does without changing a
+        // single metered level — which is exactly the moment the user most
+        // needs to see the limiter working.
+        let reduction = mixer.limiterReductionDB()
+        let reductionMoved = abs(reduction - lastSentLimiterReduction) > 0.2
+
+        guard !changed.isEmpty || reductionMoved else { return }
+        lastSentLimiterReduction = reduction
+        if let data = MixPillCoder.encode(LevelsPayload(samples: changed, limiterReductionDB: reduction)) {
             sendToUI { $0.levelsChanged(data) }
         }
     }
@@ -355,7 +374,7 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
             self.ducking.setEnabled(config.duckingEnabled)
 
             for channel in config.channels {
-                self.mixer.applyChannel(channel)
+                self.mixer.applyChannel(channel, source: "configuration")
             }
             for channel in config.channels {
                 self.channelBypass[channel.bundleID] = channel.processingBypassed
@@ -372,7 +391,7 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
     func applyChannel(_ data: Data) {
         guard let config = MixPillCoder.decode(ChannelConfig.self, from: data) else { return }
         queue.async {
-            if self.applyLocked(config) {
+            if self.applyLocked(config, source: "channel") {
                 self.publishExclusions()
             }
         }
@@ -382,7 +401,7 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
         guard let configs = MixPillCoder.decode([ChannelConfig].self, from: data) else { return }
         queue.async {
             var exclusionsChanged = false
-            for config in configs where self.applyLocked(config) {
+            for config in configs where self.applyLocked(config, source: "table") {
                 exclusionsChanged = true
             }
             if exclusionsChanged {
@@ -394,8 +413,8 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
     /// Applies one channel and reports whether it moved in or out of DAW
     /// Direct — which is the only part the capture layer needs to hear
     /// about. Call on `queue`.
-    private func applyLocked(_ config: ChannelConfig) -> Bool {
-        mixer.applyChannel(config)
+    private func applyLocked(_ config: ChannelConfig, source: String) -> Bool {
+        mixer.applyChannel(config, source: source)
 
         // DAW Direct means "do not touch this app at all", so a change to
         // it has to reach the capture layer, not just the DSP. The first
@@ -468,6 +487,14 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
             snapshot.hardwareSampleRate = self.registry.defaultDeviceNominalSampleRate()
             snapshot.lastRecoveryReason = self.resilience.lastRecoveryReason
             snapshot.lastRecoveryDate = self.resilience.lastRecoveryDate
+
+            let health = self.mixer.ringHealth()
+            snapshot.ringUnderruns = health.underruns
+            snapshot.ringStarvations = health.starvations
+            snapshot.ringDrops = health.drops
+            snapshot.ringResyncs = health.resyncs
+            snapshot.clockCorrectionPPM = self.mixer.clockCorrectionPPM()
+            snapshot.appliedChannels = self.mixer.appliedChannels()
 
             reply(MixPillCoder.encode(snapshot) ?? Data())
         }
