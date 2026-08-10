@@ -23,7 +23,7 @@ public struct SettingsView: View {
 
             MatrixRouterView()
                 .tabItem {
-                    Label("Routing", systemImage: "arrow.triangle.swap")
+                    Label("Routing", systemImage: "arrow.triangle.branch")
                 }
 
             DiagnosticsView()
@@ -176,6 +176,7 @@ private struct GeneralSettingsView: View {
 
 private struct PresetsSettingsView: View {
     @Environment(PresetManager.self) private var presetManager
+    @Environment(AppDiscoveryService.self) private var discoveryService
 
     var body: some View {
         Form {
@@ -190,39 +191,109 @@ private struct PresetsSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 } else {
+                    let activeID = presetManager.activePresetID()
                     ForEach(presetManager.presets) { preset in
-                        HStack(spacing: Constants.UI.interElementSpacing) {
-                            Label {
-                                Text(preset.name)
-                                    .font(.system(size: 13, weight: .medium))
-                            } icon: {
-                                Image(systemName: "slider.vertical.3")
-                                    .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Button(role: .destructive) {
-                                presetManager.deletePreset(id: preset.id)
-                            } label: {
-                                Image(systemName: "trash")
-                                    .symbolRenderingMode(.hierarchical)
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Delete preset")
-                            .accessibilityLabel("Delete preset \(preset.name)")
-                        }
+                        PresetRow(
+                            preset: preset,
+                            isActive: preset.id == activeID,
+                            onRename: { presetManager.renamePreset(id: preset.id, to: $0) },
+                            onApply: { presetManager.applyPreset(id: preset.id, to: discoveryService) },
+                            onOverwrite: {
+                                presetManager.overwritePreset(id: preset.id, with: discoveryService.availableApps)
+                            },
+                            onDelete: { presetManager.deletePreset(id: preset.id) }
+                        )
                     }
                 }
             } header: {
                 SettingsSectionHeader("Saved Presets")
             } footer: {
-                Text("Save presets from the menu bar popover to capture every app's volume and mute state.")
+                Text("A preset captures every app's volume, mute, equalizer, noise gate and output device. Save one from the menu bar popover, then apply it by hand, from an automation rule, or from a Focus filter.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// One saved preset: rename in place, apply, re-capture, delete.
+private struct PresetRow: View {
+    let preset: PresetModel
+    let isActive: Bool
+    let onRename: (String) -> Void
+    let onApply: () -> Void
+    let onOverwrite: () -> Void
+    let onDelete: () -> Void
+
+    @State private var draftName = ""
+    @FocusState private var editing: Bool
+
+    var body: some View {
+        HStack(spacing: Constants.UI.interElementSpacing) {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "slider.vertical.3")
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                .modifier(ConditionalHelp(text: isActive ? "This preset matches the current mix" : nil))
+
+            VStack(alignment: .leading, spacing: 1) {
+                // Editable in place — presets were auto-named "Preset 3"
+                // with no way to change it, which makes an automation rule
+                // pointing at one unreadable.
+                TextField("Preset name", text: $draftName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .medium))
+                    .focused($editing)
+                    .onSubmit { commitName() }
+                    .onChange(of: editing) { _, isEditing in
+                        if !isEditing { commitName() }
+                    }
+
+                Text(preset.channels.count == 1
+                     ? "1 app"
+                     : "\(preset.channels.count) apps")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
+            Button("Apply", action: onApply)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isActive)
+
+            Button {
+                onOverwrite()
+            } label: {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .symbolRenderingMode(.hierarchical)
+            }
+            .buttonStyle(.borderless)
+            .help("Replace this preset with the mixer's current state")
+            .accessibilityLabel("Update preset \(preset.name) from the current mix")
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+                    .symbolRenderingMode(.hierarchical)
+            }
+            .buttonStyle(.borderless)
+            .help("Delete preset")
+            .accessibilityLabel("Delete preset \(preset.name)")
+        }
+        .onAppear { draftName = preset.name }
+        .onChange(of: preset.name) { _, name in
+            if !editing { draftName = name }
+        }
+    }
+
+    private func commitName() {
+        let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            draftName = preset.name
+            return
+        }
+        guard trimmed != preset.name else { return }
+        onRename(trimmed)
     }
 }

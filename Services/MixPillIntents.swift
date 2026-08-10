@@ -59,8 +59,8 @@ struct SetAppVolumeIntent: AppIntent {
     @Parameter(title: "Application")
     var app: AudioAppEntity
 
-    @Parameter(title: "Volume", description: "0 to 100 percent.",
-               inclusiveRange: (0, 100))
+    @Parameter(title: "Volume", description: "0 to 200 percent. 100 is normal; above that MixPill boosts the app.",
+               inclusiveRange: (0, 200))
     var percent: Int
 
     static var parameterSummary: some ParameterSummary {
@@ -69,7 +69,7 @@ struct SetAppVolumeIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        let volume = Float(max(0, min(100, percent))) / 100
+        let volume = Float(max(0, min(200, percent))) / 100
         ChannelConfigStore.shared.setVolume(volume, isMuted: ChannelConfigStore.shared.isMuted(for: app.id), for: app.id)
         MixPillIntentBridge.shared.discoveryService?.refreshModelFromStore(for: app.id)
         return .result()
@@ -124,7 +124,7 @@ struct SetMasterVolumeIntent: AppIntent {
 struct ApplyPresetIntent: AppIntent {
     static let title: LocalizedStringResource = "Apply MixPill Preset"
     static let description = IntentDescription(
-        "Restores every app's saved volume and mute state from one of your presets."
+        "Restores every app's saved volume, mute, equalizer, noise gate and output from one of your presets."
     )
 
     @Parameter(title: "Preset")

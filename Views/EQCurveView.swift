@@ -18,11 +18,15 @@ struct EQCurveView: View {
     var gains: [Float]
     /// The vertical extent of the plot, in dB.
     var range: Float = 12
+    /// The rate the engine is actually filtering at. Hardcoding 48 kHz made
+    /// the drawn curve drift from the applied one on any interface running
+    /// at 96 or 192 kHz, which defeats the whole point of deriving the
+    /// picture from the engine's own biquad maths.
+    var sampleRate: Float = Float(CoreAudioFormat.baseSampleRate)
 
     private static let bandFrequencies: [Float] = [100, 400, 1000, 4000, 10000]
     private static let minHz: Float = 20
     private static let maxHz: Float = 20000
-    private static let sampleRate: Float = 48000
     private static let resolution = 160
 
     var body: some View {
@@ -84,7 +88,7 @@ struct EQCurveView: View {
     }
 
     private func curvePoints(width: CGFloat, height: CGFloat) -> [CGPoint] {
-        let coefficients = Self.coefficients(for: gains)
+        let coefficients = Self.coefficients(for: gains, sampleRate: sampleRate)
         guard !coefficients.isEmpty else {
             return [CGPoint(x: 0, y: height / 2), CGPoint(x: width, y: height / 2)]
         }
@@ -92,7 +96,7 @@ struct EQCurveView: View {
         return (0..<Self.resolution).map { index in
             let t = Float(index) / Float(Self.resolution - 1)
             let frequency = Self.minHz * pow(Self.maxHz / Self.minHz, t)
-            let dB = Self.magnitudeDB(of: coefficients, at: frequency)
+            let dB = Self.magnitudeDB(of: coefficients, at: frequency, sampleRate: sampleRate)
             let clamped = max(-range, min(range, dB))
             let y = height / 2 - CGFloat(clamped / range) * (height / 2 - 6)
             return CGPoint(x: CGFloat(t) * width, y: y)
@@ -108,7 +112,7 @@ struct EQCurveView: View {
 
     /// RBJ peaking coefficients, normalized — the same design the render
     /// thread uses, so the drawing cannot drift from the sound.
-    private static func coefficients(for gains: [Float]) -> [[Float]] {
+    private static func coefficients(for gains: [Float], sampleRate: Float) -> [[Float]] {
         var rows: [[Float]] = []
         for (index, frequency) in bandFrequencies.enumerated() {
             let gainDB = index < gains.count ? gains[index] : 0
@@ -132,7 +136,7 @@ struct EQCurveView: View {
     }
 
     /// Cascaded magnitude response in dB at one frequency.
-    private static func magnitudeDB(of sections: [[Float]], at frequency: Float) -> Float {
+    private static func magnitudeDB(of sections: [[Float]], at frequency: Float, sampleRate: Float) -> Float {
         let w = 2 * Float.pi * frequency / sampleRate
         var total: Float = 0
 

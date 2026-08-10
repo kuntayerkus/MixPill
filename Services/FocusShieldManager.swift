@@ -132,7 +132,7 @@ public final class FocusShieldManager {
         guard Date.now.timeIntervalSince(lastUserInput) > Self.stealQuietPeriod else { return }
 
         restoreCooldownUntil = Date.now.addingTimeInterval(Self.restoreCooldown)
-        print("FocusShield: restored focus to \(previous.localizedName ?? previous.bundleIdentifier ?? "previous app")")
+        MixPillLog.log("FocusShield: restored focus to \(previous.localizedName ?? previous.bundleIdentifier ?? "previous app")")
         previous.activate()
     }
 }

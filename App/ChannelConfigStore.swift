@@ -47,7 +47,7 @@ public final class ChannelConfigStore {
         ChannelConfig(
             bundleID: bundleID,
             volume: persistedVolume(for: bundleID),
-            isMuted: persistedMute(for: bundleID),
+            isMuted: isEffectivelyMuted(bundleID),
             eqGains: persistedEQGains(for: bundleID) ?? Self.flatEQGains,
             processingBypassed: persistedDawDirect(for: bundleID) ?? Self.isDAW(bundleID: bundleID),
             noiseGateThreshold: persistedNoiseGate(for: bundleID),
@@ -60,10 +60,100 @@ public final class ChannelConfigStore {
         bundleIDs.map { channelConfig(for: $0) }
     }
 
+    // MARK: - Solo
+
+    /// The app currently soloed, if any. Deliberately not persisted: solo
+    /// is a thing you do for a minute, not a setting, and finding every
+    /// other app muted after a restart would be a bug rather than a
+    /// restored preference.
+    public private(set) var soloedBundleID: String?
+
+    /// Whether this channel is silent right now, counting solo. Solo
+    /// overlays the persisted mute rather than overwriting it, so releasing
+    /// it puts every app back exactly where it was.
+    public func isEffectivelyMuted(_ bundleID: String) -> Bool {
+        if let soloedBundleID, soloedBundleID != bundleID { return true }
+        return persistedMute(for: bundleID)
+    }
+
+    public func toggleSolo(for bundleID: String) {
+        soloedBundleID = soloedBundleID == bundleID ? nil : bundleID
+        pushAllChannels()
+    }
+
+    public func clearSolo() {
+        guard soloedBundleID != nil else { return }
+        soloedBundleID = nil
+        pushAllChannels()
+    }
+
+    // MARK: - Preset snapshots
+
+    /// The full saved state of one app, for putting into a preset.
+    public func presetChannel(for bundleID: String) -> PresetChannel {
+        PresetChannel(
+            volume: persistedVolume(for: bundleID),
+            isMuted: persistedMute(for: bundleID),
+            eqGains: eqGains(for: bundleID),
+            noiseGateThreshold: persistedNoiseGate(for: bundleID),
+            compressorEnabled: persistedNightMode(for: bundleID),
+            routePairID: routingPairID(for: bundleID),
+            dawDirect: isDawDirectMode(for: bundleID)
+        )
+    }
+
+    public func presetSnapshot(of bundleIDs: [String]) -> [String: PresetChannel] {
+        Dictionary(uniqueKeysWithValues: bundleIDs.map { ($0, presetChannel(for: $0)) })
+    }
+
+    /// Applies a preset's channels in one go, with no per-app undo entries
+    /// — the caller records the whole thing as a single step, so ⌘Z undoes
+    /// "apply this preset" rather than unwinding it one application at a
+    /// time.
+    public func applyPresetChannels(_ channels: [String: PresetChannel]) {
+        for (bundleID, channel) in channels {
+            persistVolume(max(0, min(AudioScale.maximumChannelGain, channel.volume)), for: bundleID)
+            persistMute(channel.isMuted, for: bundleID)
+            if let gains = channel.eqGains { persistEQGains(gains, for: bundleID) }
+            if let gate = channel.noiseGateThreshold { persistNoiseGate(gate, for: bundleID) }
+            if let compressor = channel.compressorEnabled { persistNightMode(compressor, for: bundleID) }
+            if let dawDirect = channel.dawDirect { persistDawDirect(dawDirect, for: bundleID) }
+            if let pairID = channel.routePairID {
+                if pairID == "system-default" {
+                    routes.removeValue(forKey: bundleID)
+                } else {
+                    routes[bundleID] = pairID
+                }
+                scheduleFlush(Constants.StorageKeys.routing)
+            }
+        }
+        bridge?.pushChannels(channels.keys.map { channelConfig(for: $0) })
+    }
+
+    /// True when every app the preset mentions already matches it.
+    public func matchesCurrentState(_ channels: [String: PresetChannel]) -> Bool {
+        channels.allSatisfy { bundleID, saved in
+            let current = presetChannel(for: bundleID)
+            if abs(current.volume - saved.volume) > 0.001 { return false }
+            if current.isMuted != saved.isMuted { return false }
+            if let gains = saved.eqGains, gains != current.eqGains { return false }
+            if let gate = saved.noiseGateThreshold, abs(gate - (current.noiseGateThreshold ?? 0)) > 0.0001 { return false }
+            if let compressor = saved.compressorEnabled, compressor != current.compressorEnabled { return false }
+            if let pairID = saved.routePairID, pairID != current.routePairID { return false }
+            if let dawDirect = saved.dawDirect, dawDirect != current.dawDirect { return false }
+            return true
+        }
+    }
+
+    private func pushAllChannels() {
+        guard let bridge else { return }
+        bridge.pushChannels(channels(for: bridge.knownBundleIDs))
+    }
+
     // MARK: - Volume & mute
 
     public func setVolume(_ volume: Float, isMuted: Bool, for bundleID: String) {
-        let clamped = max(0.0, min(1.0, volume))
+        let clamped = max(0.0, min(AudioScale.maximumChannelGain, volume))
         let previousVolume = persistedVolume(for: bundleID)
         let previousMute = persistedMute(for: bundleID)
         guard clamped != previousVolume || isMuted != previousMute else { return }
@@ -97,9 +187,17 @@ public final class ChannelConfigStore {
             ?? bundleID
     }
 
+    /// Nudges a channel by a step of *fader travel*, not of raw gain.
+    ///
+    /// ⌥-scroll used to add 0.05 to the linear gain, which is a barely
+    /// audible nudge near unity and a jump of tens of decibels near
+    /// silence. Stepping the fader position instead makes every notch the
+    /// same perceived change, wherever the fader happens to be.
     @discardableResult
-    public func adjustVolume(by amount: Float, for bundleID: String) -> Float {
-        let updated = max(0.0, min(1.0, persistedVolume(for: bundleID) + amount))
+    public func adjustVolume(by positionDelta: Float, for bundleID: String) -> Float {
+        let current = persistedVolume(for: bundleID)
+        let position = AudioScale.position(forGain: current) + positionDelta
+        let updated = AudioScale.gain(forPosition: position)
         persistVolume(updated, for: bundleID)
         pushChannel(bundleID)
         return updated
@@ -206,13 +304,15 @@ public final class ChannelConfigStore {
         } else {
             routes[bundleID] = pairID
         }
-        UserDefaults.standard.set(routes, forKey: Constants.StorageKeys.routing)
+        scheduleFlush(Constants.StorageKeys.routing)
         pushChannel(bundleID)
     }
 
-    public func setRouting(pairID: String, forAllApps bundleIDs: [String]) {
+    /// Routes several apps without recording an undo entry each — the
+    /// caller wraps the whole move in one transaction.
+    public func setRoutingWithoutUndo(pairID: String, for bundleIDs: [String]) {
         for bundleID in bundleIDs {
-            setRouting(pairID: pairID, for: bundleID)
+            applyRouting(pairID: pairID, for: bundleID)
         }
     }
 
@@ -222,10 +322,30 @@ public final class ChannelConfigStore {
         UserDefaults.standard.object(forKey: Constants.StorageKeys.masterVolume) as? Float ?? 1.0
     }
 
+    /// What the engine should actually run at, counting master mute.
+    public var effectiveMasterVolume: Float {
+        isMasterMuted ? 0 : masterVolume
+    }
+
     public func setMasterVolume(_ volume: Float) {
         let clamped = max(0.0, min(1.0, volume))
         UserDefaults.standard.set(clamped, forKey: Constants.StorageKeys.masterVolume)
-        bridge?.setMasterVolume(clamped)
+        pushMasterVolume()
+    }
+
+    /// Master mute, kept separate from the fader so unmuting returns to the
+    /// level you were at rather than to wherever the knob was dragged.
+    public var isMasterMuted: Bool {
+        UserDefaults.standard.bool(forKey: Constants.StorageKeys.masterMuted)
+    }
+
+    public func setMasterMuted(_ muted: Bool) {
+        UserDefaults.standard.set(muted, forKey: Constants.StorageKeys.masterMuted)
+        pushMasterVolume()
+    }
+
+    private func pushMasterVolume() {
+        bridge?.setMasterVolume(isMasterMuted ? 0 : masterVolume)
     }
 
     public var lowLatencyEnabled: Bool {
@@ -255,69 +375,100 @@ public final class ChannelConfigStore {
 
     // MARK: - Persistence primitives
 
-    private func persistedVolume(for bundleID: String) -> Float {
-        let volumes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.appVolumes) as? [String: Float] ?? [:]
-        return volumes[bundleID] ?? 1.0
+    /// Per-app settings live in memory and are written back on a short
+    /// delay.
+    ///
+    /// Every getter used to read a whole dictionary out of `UserDefaults`
+    /// and every setter used to read it, copy it, change one key and write
+    /// it back. Dragging a fader does that sixty times a second, and each
+    /// write serializes the values of *every* app — so the cost of moving
+    /// one slider grew with how many apps had ever been seen. The gain
+    /// still reaches the engine immediately; only the trip to disk waits.
+    private static let flushDelay: Duration = .milliseconds(250)
+
+    private var volumes: [String: Float] = UserDefaults.standard
+        .dictionary(forKey: Constants.StorageKeys.appVolumes) as? [String: Float] ?? [:]
+    private var mutes: [String: Bool] = UserDefaults.standard
+        .dictionary(forKey: Constants.StorageKeys.appMutes) as? [String: Bool] ?? [:]
+    private var eqGainsByID: [String: [Float]] = UserDefaults.standard
+        .dictionary(forKey: Constants.StorageKeys.eqGains) as? [String: [Float]] ?? [:]
+    private var noiseGates: [String: Float] = UserDefaults.standard
+        .dictionary(forKey: Constants.StorageKeys.noiseGates) as? [String: Float] ?? [:]
+    private var nightModes: [String: Bool] = UserDefaults.standard
+        .dictionary(forKey: Constants.StorageKeys.nightModes) as? [String: Bool] ?? [:]
+    private var dawDirectModes: [String: Bool] = UserDefaults.standard
+        .dictionary(forKey: Constants.StorageKeys.dawDirectModes) as? [String: Bool] ?? [:]
+
+    private var pendingFlush: Set<String> = []
+    private var flushTask: Task<Void, Never>?
+
+    private func scheduleFlush(_ key: String) {
+        pendingFlush.insert(key)
+        flushTask?.cancel()
+        flushTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.flushDelay)
+            guard !Task.isCancelled else { return }
+            self?.flushPending()
+        }
     }
 
-    private func persistedMute(for bundleID: String) -> Bool {
-        let mutes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.appMutes) as? [String: Bool] ?? [:]
-        return mutes[bundleID] ?? false
+    /// Writes everything that changed. Called on the debounce and, so a
+    /// quit mid-drag cannot lose the last move, at termination.
+    public func flushPending() {
+        flushTask?.cancel()
+        flushTask = nil
+        guard !pendingFlush.isEmpty else { return }
+
+        let defaults = UserDefaults.standard
+        for key in pendingFlush {
+            switch key {
+            case Constants.StorageKeys.appVolumes:    defaults.set(volumes, forKey: key)
+            case Constants.StorageKeys.appMutes:      defaults.set(mutes, forKey: key)
+            case Constants.StorageKeys.eqGains:       defaults.set(eqGainsByID, forKey: key)
+            case Constants.StorageKeys.noiseGates:    defaults.set(noiseGates, forKey: key)
+            case Constants.StorageKeys.nightModes:    defaults.set(nightModes, forKey: key)
+            case Constants.StorageKeys.dawDirectModes: defaults.set(dawDirectModes, forKey: key)
+            case Constants.StorageKeys.routing:       defaults.set(routes, forKey: key)
+            default: break
+            }
+        }
+        pendingFlush.removeAll()
     }
 
-    private func persistedEQGains(for bundleID: String) -> [Float]? {
-        let gains = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.eqGains) as? [String: [Float]] ?? [:]
-        return gains[bundleID]
-    }
-
-    private func persistedNoiseGate(for bundleID: String) -> Float {
-        let gates = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.noiseGates) as? [String: Float] ?? [:]
-        return gates[bundleID] ?? 0.0
-    }
-
-    private func persistedNightMode(for bundleID: String) -> Bool {
-        let modes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.nightModes) as? [String: Bool] ?? [:]
-        return modes[bundleID] ?? false
-    }
-
-    private func persistedDawDirect(for bundleID: String) -> Bool? {
-        let modes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.dawDirectModes) as? [String: Bool] ?? [:]
-        return modes[bundleID]
-    }
+    private func persistedVolume(for bundleID: String) -> Float { volumes[bundleID] ?? 1.0 }
+    private func persistedMute(for bundleID: String) -> Bool { mutes[bundleID] ?? false }
+    private func persistedEQGains(for bundleID: String) -> [Float]? { eqGainsByID[bundleID] }
+    private func persistedNoiseGate(for bundleID: String) -> Float { noiseGates[bundleID] ?? 0.0 }
+    private func persistedNightMode(for bundleID: String) -> Bool { nightModes[bundleID] ?? false }
+    private func persistedDawDirect(for bundleID: String) -> Bool? { dawDirectModes[bundleID] }
 
     private func persistVolume(_ volume: Float, for bundleID: String) {
-        var volumes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.appVolumes) as? [String: Float] ?? [:]
         volumes[bundleID] = volume
-        UserDefaults.standard.set(volumes, forKey: Constants.StorageKeys.appVolumes)
+        scheduleFlush(Constants.StorageKeys.appVolumes)
     }
 
     private func persistMute(_ isMuted: Bool, for bundleID: String) {
-        var mutes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.appMutes) as? [String: Bool] ?? [:]
         mutes[bundleID] = isMuted
-        UserDefaults.standard.set(mutes, forKey: Constants.StorageKeys.appMutes)
+        scheduleFlush(Constants.StorageKeys.appMutes)
     }
 
     private func persistEQGains(_ gains: [Float], for bundleID: String) {
-        var all = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.eqGains) as? [String: [Float]] ?? [:]
-        all[bundleID] = gains
-        UserDefaults.standard.set(all, forKey: Constants.StorageKeys.eqGains)
+        eqGainsByID[bundleID] = gains
+        scheduleFlush(Constants.StorageKeys.eqGains)
     }
 
     private func persistNoiseGate(_ threshold: Float, for bundleID: String) {
-        var gates = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.noiseGates) as? [String: Float] ?? [:]
-        gates[bundleID] = threshold
-        UserDefaults.standard.set(gates, forKey: Constants.StorageKeys.noiseGates)
+        noiseGates[bundleID] = threshold
+        scheduleFlush(Constants.StorageKeys.noiseGates)
     }
 
     private func persistNightMode(_ enabled: Bool, for bundleID: String) {
-        var modes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.nightModes) as? [String: Bool] ?? [:]
-        modes[bundleID] = enabled
-        UserDefaults.standard.set(modes, forKey: Constants.StorageKeys.nightModes)
+        nightModes[bundleID] = enabled
+        scheduleFlush(Constants.StorageKeys.nightModes)
     }
 
     private func persistDawDirect(_ enabled: Bool, for bundleID: String) {
-        var modes = UserDefaults.standard.dictionary(forKey: Constants.StorageKeys.dawDirectModes) as? [String: Bool] ?? [:]
-        modes[bundleID] = enabled
-        UserDefaults.standard.set(modes, forKey: Constants.StorageKeys.dawDirectModes)
+        dawDirectModes[bundleID] = enabled
+        scheduleFlush(Constants.StorageKeys.dawDirectModes)
     }
 }

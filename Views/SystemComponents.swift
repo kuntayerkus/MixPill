@@ -55,3 +55,24 @@ public struct SettingsSectionHeader: View {
             .accessibilityAddTraits(.isHeader)
     }
 }
+
+/// Attaches a tooltip only when there is one to show.
+///
+/// `.help("")` still registers an empty key in the String Catalog, which is
+/// a blank row for a translator to puzzle over and a tooltip macOS draws as
+/// an empty rectangle.
+public struct ConditionalHelp: ViewModifier {
+    let text: String?
+
+    public init(text: String?) {
+        self.text = text
+    }
+
+    public func body(content: Content) -> some View {
+        if let text, !text.isEmpty {
+            content.help(text)
+        } else {
+            content
+        }
+    }
+}

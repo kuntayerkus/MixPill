@@ -65,3 +65,50 @@ public enum CoreAudioFormat {
         44_100, 48_000, 88_200, 96_000, 176_400, 192_000
     ]
 }
+
+/// Routing target for a channel strip. `deviceUID == ""` is the sentinel
+/// for "follow the system default output".
+public struct MixEngineKey: Hashable, Sendable {
+    public let deviceUID: String
+    public let pairIndex: Int
+
+    public init(deviceUID: String, pairIndex: Int) {
+        self.deviceUID = deviceUID
+        self.pairIndex = pairIndex
+    }
+
+    public static let systemDefault = MixEngineKey(deviceUID: "", pairIndex: 0)
+
+    /// Parses the wire pair id ("system-default" or "deviceUID#pairIndex").
+    ///
+    /// Two things this has to survive. First, malformed input: the value is
+    /// read back out of `UserDefaults`, and `"#"` used to split into an
+    /// *empty* array — Swift drops empty subsequences — so indexing `[0]`
+    /// crashed the audio service outright.
+    ///
+    /// Second, a device UID is an arbitrary string chosen by its driver and
+    /// may contain "#" itself. Splitting on the first separator resolved
+    /// `"Focusrite#1"` (that device, pair 0) as device `"Focusrite"`, pair 1
+    /// — silently the wrong device *and* the wrong channel pair. Splitting
+    /// on the last one, and only when the tail is actually a number, gets
+    /// both cases right while keeping the on-disk format unchanged.
+    public static func parse(pairID: String) -> MixEngineKey {
+        guard pairID != "system-default", !pairID.isEmpty else { return .systemDefault }
+
+        guard let separator = pairID.lastIndex(of: "#") else {
+            return MixEngineKey(deviceUID: pairID, pairIndex: 0)
+        }
+
+        let uid = String(pairID[pairID.startIndex..<separator])
+        let tail = pairID[pairID.index(after: separator)...]
+        guard !uid.isEmpty, let pairIndex = Int(tail), pairIndex >= 0 else {
+            // Not our encoding after all — the "#" belongs to the UID.
+            return MixEngineKey(deviceUID: pairID, pairIndex: 0)
+        }
+        return MixEngineKey(deviceUID: uid, pairIndex: pairIndex)
+    }
+
+    public var pairID: String {
+        deviceUID.isEmpty ? "system-default" : (pairIndex == 0 ? deviceUID : "\(deviceUID)#\(pairIndex)")
+    }
+}

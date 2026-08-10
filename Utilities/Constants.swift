@@ -1,13 +1,12 @@
 import Foundation
 import CoreGraphics
 import SwiftUI
+import AppKit
 
 public struct Constants {
     // MARK: - UI Dimensions (HIG: Control Center spacing)
     public struct UI {
         public static let popoverWidth: CGFloat = 320
-        public static let popoverHeight: CGFloat = 450
-        public static let appRowHeight: CGFloat = 60
         public static let iconSize: CGFloat = 32
         public static let cornerRadius: CGFloat = 12
 
@@ -22,7 +21,20 @@ public struct Constants {
 
     // MARK: - Motion (Apple signature spring physics)
     public struct Motion {
-        public static let spring: Animation = .spring(response: 0.28, dampingFraction: 0.75)
+        /// The house spring — unless the user has asked the system for less
+        /// movement, in which case it collapses to an instant change.
+        ///
+        /// Computed rather than stored so every existing call site honours
+        /// Reduce Motion without being touched. `NSWorkspace` exposes the
+        /// setting outside SwiftUI, so this works from view modifiers,
+        /// `withAnimation` blocks and AppKit code alike.
+        public static var spring: Animation {
+            reduceMotion ? .linear(duration: 0) : .spring(response: 0.28, dampingFraction: 0.75)
+        }
+
+        public static var reduceMotion: Bool {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        }
     }
 
     // MARK: - Audio Defaults
@@ -38,6 +50,7 @@ public struct Constants {
     public struct StorageKeys {
         public static let presets = "MixPill.Presets"
         public static let masterVolume = "MixPill.MasterVolume"
+        public static let masterMuted = "MixPill.MasterMuted"
         public static let appVolumes = "MixPill.AppVolumes"
         public static let appMutes = "MixPill.AppMutes"
         public static let eqGains = "MixPill.EQGains"
@@ -48,7 +61,6 @@ public struct Constants {
         public static let hotkeysEnabled = "MixPill.HotkeysEnabled"
         public static let lowLatencyMode = "MixPill.LowLatencyMode"
         public static let duckingEnabled = "MixPill.DuckingEnabled"
-        public static let echoFreeFallbackDevice = "MixPill.EchoFreeFallbackDevice"
         public static let nightModes = "MixPill.NightModes"
         public static let focusShieldEnabled = "MixPill.FocusShieldEnabled"
         public static let dawDirectModes = "MixPill.DawDirectModes"

@@ -25,14 +25,31 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
     private var ringHealthTimer: DispatchSourceTimer?
     private var lastRingHealth: (underruns: Int, drops: Int) = (0, 0)
     private var lastLateCallbacks = 0
-    /// Bundle identifiers the UI has put on DAW Direct.
-    private var untappedBundleIDs: Set<String> = []
+    /// What the interface has said about each channel's DAW Direct state.
+    /// Absence matters as much as the value: an app that is not in here has
+    /// not been described yet, and a recognised DAW stays untapped until it
+    /// is.
+    private var channelBypass: [String: Bool] = [:]
+
+    private var untappedBundleIDs: Set<String> {
+        Set(channelBypass.filter(\.value).keys)
+    }
 
     /// Ducking needs a steady pulse whether or not anyone is looking; the
     /// meters need enough frames to look like meters. 10 Hz costs nothing
     /// when idle, 30 Hz is where stepping stops being visible.
     private static let backgroundMeterInterval = 1.0 / 10.0
     private static let displayMeterInterval = 1.0 / 30.0
+    /// With no taps open there is nothing to meter and nothing to duck, so
+    /// the pulse drops to a heartbeat rather than running ten times a
+    /// second for the life of the machine.
+    private static let idleMeterInterval = 1.0
+
+    /// Last values sent per app, so unchanged levels are not re-encoded and
+    /// shipped across XPC thirty times a second.
+    private var lastSentLevels: [String: (rms: Float, peak: Float)] = [:]
+    /// Below this difference a change is not visible on a 6 pt meter.
+    private static let levelEpsilon: Float = 0.002
 
     private let proxyLock = UnfairLock()
     private var uiProxy: MixPillCoreEventsProtocol?
@@ -50,16 +67,8 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
 
         discovery.onProcessesChanged = { [weak self] processes in
             guard let self else { return }
-            let apps = processes.map {
-                CoreAppInfo(bundleID: $0.bundleID, name: $0.name,
-                            isPlaying: $0.isPlaying, isCapturingInput: $0.isCapturingInput)
-            }
             self.ducking.updateCallParticipants(processes.filter(\.isCapturingInput).map(\.bundleID))
-            self.sendToUI { proxy in
-                if let data = MixPillCoder.encode(apps) {
-                    proxy.appsChanged(data)
-                }
-            }
+            self.pushApps()
             self.capture.sync(with: processes)
         }
 
@@ -71,8 +80,24 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
             self?.pushDevices()
         }
 
-        capture.onAvailabilityChanged = { [weak self] available, reason in
-            self?.sendToUI { $0.captureAvailabilityChanged(available: available, reason: reason) }
+        capture.currentProcessesProvider = { [weak self] in
+            self?.discovery.currentProcesses ?? []
+        }
+        capture.onCaptureStateChanged = { [weak self] state in
+            guard let self else { return }
+            // Which apps are captured is part of what the interface draws
+            // for each row, so the list has to go out again alongside the
+            // banner.
+            self.pushApps()
+            // A tap opening or closing changes whether there is anything to
+            // meter at all.
+            self.queue.async { self.applyMeterInterval() }
+            self.sendToUI {
+                $0.captureAvailabilityChanged(
+                    available: state.failures.isEmpty,
+                    reason: Self.captureFailureMessage(for: state)
+                )
+            }
         }
 
         registry.changeQueue = queue
@@ -104,6 +129,34 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
         body(proxy)
     }
 
+    /// Sends the current application list, stamped with whether the engine
+    /// actually holds a tap on each one.
+    private func pushApps() {
+        let captured = capture.capturedBundleIDs
+        let apps = discovery.currentProcesses.map {
+            CoreAppInfo(
+                bundleID: $0.bundleID,
+                name: $0.name,
+                isPlaying: $0.isPlaying,
+                isCapturingInput: $0.isCapturingInput,
+                isCaptured: captured.contains($0.bundleID)
+            )
+        }
+        guard let data = MixPillCoder.encode(apps) else { return }
+        sendToUI { $0.appsChanged(data) }
+    }
+
+    /// Names the applications the engine could not tap, with the OSStatus
+    /// the HAL actually returned. Vague is useless here — the whole point
+    /// of reporting observed failures is that they can be looked up.
+    private static func captureFailureMessage(for state: ProcessTapCapture.CaptureState) -> String {
+        guard !state.failureNames.isEmpty else { return "" }
+        let codes = Set(state.failures.values).sorted().map(String.init).joined(separator: ", ")
+        let names = state.failureNames.joined(separator: ", ")
+        let subject = state.failureNames.count == 1 ? "an audio tap" : "audio taps"
+        return "macOS refused \(subject) on \(names) (error \(codes)). Retrying."
+    }
+
     private func pushDevices() {
         let snapshot = registry.snapshot()
 
@@ -115,7 +168,10 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
                     ? "Outputs \(pairIndex * 2 + 1)-\(pairIndex * 2 + 2)"
                     : nil
                 let displayName = channelLabel.map { "\(device.name) — \($0)" } ?? device.name
-                let pairID = pairIndex == 0 ? device.uid : "\(device.uid)#\(pairIndex)"
+                // Built through the key type so the string the interface
+                // compares against and the string the engine parses can never
+                // drift apart.
+                let pairID = MixEngineKey(deviceUID: device.uid, pairIndex: pairIndex).pairID
                 columns.append(RoutingColumnDTO(
                     pairID: pairID,
                     displayName: displayName,
@@ -128,7 +184,8 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
         let payload = DevicesPayload(
             devices: snapshot.devices.map { OutputDeviceDTO(uid: $0.uid, name: $0.name, channelCount: $0.channelCount) },
             defaultDeviceUID: snapshot.defaultDeviceUID,
-            columns: columns
+            columns: columns,
+            canonicalSampleRate: AudioResamplerService.canonicalFormat.sampleRate
         )
         if let data = MixPillCoder.encode(payload) {
             sendToUI { $0.devicesChanged(data) }
@@ -180,7 +237,12 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
 
     /// Call on `queue`.
     private func applyMeterInterval() {
-        let interval = meterDisplayActive ? Self.displayMeterInterval : Self.backgroundMeterInterval
+        let interval: Double
+        if capture.activeTapCount == 0 {
+            interval = Self.idleMeterInterval
+        } else {
+            interval = meterDisplayActive ? Self.displayMeterInterval : Self.backgroundMeterInterval
+        }
         levelTimer?.schedule(
             deadline: .now() + interval,
             repeating: interval,
@@ -190,17 +252,41 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
 
     private func flushLevels() {
         let levels = capture.drainLevels()
-        guard !levels.isEmpty else { return }
+
+        if levels.isEmpty {
+            // Nothing tapped: fall back to the heartbeat and stop paying
+            // for a ten-times-a-second wake-up that has nothing to report.
+            if !lastSentLevels.isEmpty {
+                lastSentLevels.removeAll()
+            }
+            applyMeterInterval()
+            return
+        }
 
         // Ducking runs regardless of who is watching.
         ducking.evaluate(levels: levels)
 
         guard uiConnected else { return }
 
-        let payload = LevelsPayload(samples: levels.map { sample in
-            LevelSample(bundleID: sample.bundleID, rms: sample.rms, peak: sample.peak)
-        })
-        if let data = MixPillCoder.encode(payload) {
+        // Only apps whose level actually moved. A quiet app reports the
+        // same value forever, and re-encoding it thirty times a second is
+        // pure XPC traffic for a meter that will not change a pixel.
+        var changed: [LevelSample] = []
+        var live = Set<String>()
+        for sample in levels {
+            live.insert(sample.bundleID)
+            let previous = lastSentLevels[sample.bundleID]
+            let moved = previous.map {
+                abs($0.rms - sample.rms) > Self.levelEpsilon || abs($0.peak - sample.peak) > Self.levelEpsilon
+            } ?? true
+            guard moved else { continue }
+            lastSentLevels[sample.bundleID] = (sample.rms, sample.peak)
+            changed.append(LevelSample(bundleID: sample.bundleID, rms: sample.rms, peak: sample.peak))
+        }
+        lastSentLevels = lastSentLevels.filter { live.contains($0.key) }
+
+        guard !changed.isEmpty else { return }
+        if let data = MixPillCoder.encode(LevelsPayload(samples: changed)) {
             sendToUI { $0.levelsChanged(data) }
         }
     }
@@ -241,10 +327,7 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
 
         // Resynchronize the freshly attached UI.
         sendToUI { $0.coreDidBecomeReady() }
-        let apps = discovery.currentApps
-        if let data = MixPillCoder.encode(apps) {
-            sendToUI { $0.appsChanged(data) }
-        }
+        pushApps()
         pushDevices()
 
         MixPillCoreLog.log("MixPillCore: UI connected")
@@ -270,13 +353,13 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
             for channel in config.channels {
                 self.mixer.applyChannel(channel)
             }
-            self.untappedBundleIDs = Set(config.channels.filter(\.processingBypassed).map(\.bundleID))
-            self.capture.setExcluded(self.untappedBundleIDs)
-
-            // Strips may have arrived after their taps did, so re-run the
-            // sync: it is idempotent, and this is the point where the
-            // engine first knows what each application's settings are.
-            self.capture.sync(with: self.discovery.currentProcesses)
+            for channel in config.channels {
+                self.channelBypass[channel.bundleID] = channel.processingBypassed
+            }
+            // `setExcluded` re-runs the tap sync itself, so strips that
+            // arrived after their taps did are picked up here — this is the
+            // point where the engine first knows each app's settings.
+            self.publishExclusions()
 
             reply(true)
         }
@@ -285,25 +368,53 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
     func applyChannel(_ data: Data) {
         guard let config = MixPillCoder.decode(ChannelConfig.self, from: data) else { return }
         queue.async {
-            self.mixer.applyChannel(config)
-
-            // DAW Direct means "do not touch this app at all", so a change
-            // to it has to reach the capture layer, not just the DSP.
-            let wasUntapped = self.untappedBundleIDs.contains(config.bundleID)
-            guard wasUntapped != config.processingBypassed else { return }
-            if config.processingBypassed {
-                self.untappedBundleIDs.insert(config.bundleID)
-            } else {
-                self.untappedBundleIDs.remove(config.bundleID)
+            if self.applyLocked(config) {
+                self.publishExclusions()
             }
-            self.capture.setExcluded(self.untappedBundleIDs)
-            self.capture.sync(with: self.discovery.currentProcesses)
         }
+    }
+
+    func applyChannels(_ data: Data) {
+        guard let configs = MixPillCoder.decode([ChannelConfig].self, from: data) else { return }
+        queue.async {
+            var exclusionsChanged = false
+            for config in configs where self.applyLocked(config) {
+                exclusionsChanged = true
+            }
+            if exclusionsChanged {
+                self.publishExclusions()
+            }
+        }
+    }
+
+    /// Applies one channel and reports whether it moved in or out of DAW
+    /// Direct — which is the only part the capture layer needs to hear
+    /// about. Call on `queue`.
+    private func applyLocked(_ config: ChannelConfig) -> Bool {
+        mixer.applyChannel(config)
+
+        // DAW Direct means "do not touch this app at all", so a change to
+        // it has to reach the capture layer, not just the DSP. The first
+        // time we hear about a channel counts as a change even if the value
+        // matches the default, because "described at all" is what releases
+        // a recognised DAW from the untapped-by-default rule.
+        let previous = channelBypass[config.bundleID]
+        channelBypass[config.bundleID] = config.processingBypassed
+        return previous != config.processingBypassed
+    }
+
+    /// Hands the capture layer both halves of the picture: which apps to
+    /// leave alone, and which it has heard about at all. Call on `queue`.
+    private func publishExclusions() {
+        capture.setExcluded(untappedBundleIDs, configured: Set(channelBypass.keys))
     }
 
     func removeChannel(_ bundleID: String) {
         queue.async {
             self.mixer.removeChannel(bundleID)
+            // The app is gone, so what the interface last said about it no
+            // longer applies — if it comes back, it is undescribed again.
+            self.channelBypass.removeValue(forKey: bundleID)
         }
     }
 
@@ -349,7 +460,7 @@ final class MixPillCoreService: NSObject, NSXPCListenerDelegate, MixPillCoreCont
             snapshot.ioLatencyMS = mixerInfo.latencyMS
             snapshot.ringCapacityFrames = mixerInfo.ringCapacityFrames
             snapshot.activeTaps = self.capture.activeTapCount
-            snapshot.activeConverters = AudioResamplerService.shared.activeConverterCount
+            snapshot.activeEngines = mixerInfo.activeEngines
             snapshot.hardwareSampleRate = self.registry.defaultDeviceNominalSampleRate()
             snapshot.lastRecoveryReason = self.resilience.lastRecoveryReason
             snapshot.lastRecoveryDate = self.resilience.lastRecoveryDate

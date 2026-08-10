@@ -22,6 +22,16 @@ public protocol MixPillCoreControlProtocol {
     /// Creates or updates one app channel. Payload: `ChannelConfig`.
     func applyChannel(_ data: Data)
 
+    /// Creates or updates several channels at once. Payload:
+    /// `[ChannelConfig]`.
+    ///
+    /// The interface re-sends channel state whenever the discovered app
+    /// list changes, and that fires every time *any* application starts or
+    /// stops playing. One message per channel meant twenty XPC round trips
+    /// — each one hopping two dispatch queues and redesigning a biquad —
+    /// because somebody opened a video in another window.
+    func applyChannels(_ data: Data)
+
     /// Removes a channel (app quit or capture permanently abandoned).
     func removeChannel(_ bundleID: String)
 

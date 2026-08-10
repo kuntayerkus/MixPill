@@ -40,9 +40,22 @@ final class AudioProcessRegistry: @unchecked Sendable {
     private var processes: [AudioProcess] = []
     private var running = false
 
-    /// Object ids we have attached an `isRunningOutput` listener to, so
-    /// listeners are added once and removed on teardown.
-    private var observedObjectIDs: Set<AudioObjectID> = []
+    /// Listener blocks per audio process object, keyed by selector.
+    ///
+    /// Kept rather than a bare id set because
+    /// `AudioObjectRemovePropertyListenerBlock` matches on the block
+    /// itself. Without them the listeners installed on every process object
+    /// were never taken off: a long-lived core service that has seen a few
+    /// hundred app launches accumulated a few hundred retained closures
+    /// bound to objects that no longer exist.
+    private var observedObjects: [AudioObjectID: [AudioObjectPropertyListenerBlock]] = [:]
+
+    /// The two properties that say whether a process is playing or
+    /// listening; a change in either is what makes the list refresh.
+    private static let observedSelectors: [AudioObjectPropertySelector] = [
+        kAudioProcessPropertyIsRunningOutput,
+        kAudioProcessPropertyIsRunningInput
+    ]
 
     /// Bundle identifiers never captured (MixPill's own processes).
     private let excludedBundleIDs: Set<String>
@@ -56,14 +69,6 @@ final class AudioProcessRegistry: @unchecked Sendable {
 
     var currentProcesses: [AudioProcess] {
         queue.sync { processes }
-    }
-
-    /// Applications in the shape the UI speaks.
-    var currentApps: [CoreAppInfo] {
-        currentProcesses.map {
-            CoreAppInfo(bundleID: $0.bundleID, name: $0.name,
-                        isPlaying: $0.isPlaying, isCapturingInput: $0.isCapturingInput)
-        }
     }
 
     // MARK: - Lifecycle
@@ -86,7 +91,9 @@ final class AudioProcessRegistry: @unchecked Sendable {
         queue.sync {
             running = false
             processes = []
-            observedObjectIDs.removeAll()
+            for objectID in observedObjects.keys {
+                unobserve(objectID)
+            }
         }
     }
 
@@ -101,6 +108,12 @@ final class AudioProcessRegistry: @unchecked Sendable {
         // Accumulate every audio process object under the application that
         // owns it, dropping anything that is not a user-facing app.
         var grouped: [String: (name: String, objectIDs: [AudioObjectID], isPlaying: Bool, isCapturingInput: Bool)] = [:]
+
+        let liveObjectIDs = Set(Self.processObjectIDs())
+        // Drop listeners bound to process objects the HAL no longer lists.
+        for objectID in observedObjects.keys where !liveObjectIDs.contains(objectID) {
+            unobserve(objectID)
+        }
 
         for objectID in Self.processObjectIDs() {
             observeRunningOutput(of: objectID)
@@ -270,12 +283,25 @@ final class AudioProcessRegistry: @unchecked Sendable {
     /// Watches one process for playback starting or stopping, so the list
     /// updates the moment audio begins rather than on the next sweep.
     private func observeRunningOutput(of objectID: AudioObjectID) {
-        guard observedObjectIDs.insert(objectID).inserted else { return }
-        for selector in [kAudioProcessPropertyIsRunningOutput, kAudioProcessPropertyIsRunningInput] {
+        guard observedObjects[objectID] == nil else { return }
+        var blocks: [AudioObjectPropertyListenerBlock] = []
+        for selector in Self.observedSelectors {
             var address = Self.address(selector)
-            AudioObjectAddPropertyListenerBlock(objectID, &address, queue) { [weak self] _, _ in
+            let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 self?.refreshLocked()
             }
+            guard AudioObjectAddPropertyListenerBlock(objectID, &address, queue, block) == noErr else { continue }
+            blocks.append(block)
+        }
+        observedObjects[objectID] = blocks
+    }
+
+    /// Takes the listeners back off a process object that has gone away.
+    private func unobserve(_ objectID: AudioObjectID) {
+        guard let blocks = observedObjects.removeValue(forKey: objectID) else { return }
+        for (index, selector) in Self.observedSelectors.enumerated() where index < blocks.count {
+            var address = Self.address(selector)
+            AudioObjectRemovePropertyListenerBlock(objectID, &address, queue, blocks[index])
         }
     }
 

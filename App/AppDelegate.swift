@@ -69,6 +69,10 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ aNotification: Notification) {
+        // Per-app settings are written on a short delay so a fader drag does
+        // not rewrite the whole preference file sixty times a second; quit
+        // while that delay is pending and the last move would be lost.
+        ChannelConfigStore.shared.flushPending()
         GlobalHotkeyManager.shared.stopListening()
         // Note: discovery/capture deliberately NOT stopped here. MixPillCore
         // keeps capturing and mixing after the UI quits — that is the point

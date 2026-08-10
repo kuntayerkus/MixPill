@@ -36,6 +36,22 @@ echo "▸ Cleaning $BUILD"
 rm -rf "$BUILD"
 mkdir -p "$BUILD"
 
+# ── Keep the checked-in version honest ─────────────────────────────────────
+#
+# `xcodebuild MARKETING_VERSION=…` only affects this archive, so project.yml
+# kept whatever it was last edited to say — which is how a 3.1.0 release
+# shipped while the repository, and therefore every developer build, still
+# claimed 3.0.0. The build number is bumped too: Sparkle compares
+# CFBundleVersion, and two releases sharing "1" are indistinguishable to it.
+echo "▸ Stamping version $VERSION into project.yml"
+CURRENT_BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION:' "$ROOT/project.yml" | tr -dc '0-9')
+NEXT_BUILD=$(( ${CURRENT_BUILD:-0} + 1 ))
+/usr/bin/sed -i '' \
+    -e "s/MARKETING_VERSION: \".*\"/MARKETING_VERSION: \"$VERSION\"/" \
+    -e "s/CURRENT_PROJECT_VERSION: \".*\"/CURRENT_PROJECT_VERSION: \"$NEXT_BUILD\"/" \
+    "$ROOT/project.yml"
+echo "  marketing $VERSION, build $NEXT_BUILD"
+
 echo "▸ Regenerating the Xcode project"
 cd "$ROOT"
 xcodegen generate >/dev/null
@@ -53,6 +69,7 @@ xcodebuild archive \
     MARKETING_VERSION="$VERSION" \
     CODE_SIGN_STYLE=Manual \
     CODE_SIGN_IDENTITY="$IDENTITY" \
+    CURRENT_PROJECT_VERSION="$NEXT_BUILD" \
     DEVELOPMENT_TEAM="$TEAM_ID" \
     ENABLE_HARDENED_RUNTIME=YES \
     | grep -E "error:|warning:|BUILD" || true
@@ -179,15 +196,39 @@ codesign --sign "$IDENTITY" --timestamp "$DMG"
 notarize "$DMG"
 xcrun stapler staple "$DMG"
 
+# ── Sparkle feed ───────────────────────────────────────────────────────────
+#
+# Generated here rather than left as a printed instruction. The feed lives
+# in the repository and `SUFeedURL` points straight at it on raw.github —
+# so a release whose appcast never gets written is a release nobody's
+# installed copy will ever see. That is exactly what happened to 3.1.0:
+# the DMG shipped and appcast.xml was never committed, leaving automatic
+# updates answering 404 for every existing install.
+APPCAST="$ROOT/appcast.xml"
+GENERATE_APPCAST="$ROOT/.spm/artifacts/sparkle/Sparkle/bin/generate_appcast"
+echo "▸ Updating the Sparkle appcast"
+"$GENERATE_APPCAST" --download-url-prefix \
+    "https://github.com/kuntayerkus/MixPill/releases/download/v$VERSION/" \
+    -o "$APPCAST" "$BUILD"
+
+# generate_appcast writes an *unsigned* entry without complaining when the
+# key does not match, and Sparkle then rejects the update on every machine.
+# The key was verified above, so an unsigned entry here means something
+# else went wrong — either way it must not be published.
+if ! grep -q "sparkle:edSignature" "$APPCAST"; then
+    echo "✗ appcast.xml has no sparkle:edSignature — Sparkle would reject this update." >&2
+    exit 1
+fi
+
 SIZE=$(du -h "$DMG" | cut -f1)
 echo
 echo "✓ $DMG ($SIZE)"
+echo "✓ $APPCAST signed"
 echo
-echo "Next, for the Sparkle feed:"
-echo "  1. .spm/artifacts/sparkle/Sparkle/bin/generate_appcast \"$BUILD\""
-echo "     — signs the update with your private EdDSA key and writes appcast.xml"
-echo "  2. Confirm SUPublicEDKey in Resources/Info.plist matches that key pair."
-echo "  3. Upload the DMG and appcast.xml to the host behind SUFeedURL."
+echo "To publish:"
+echo "  gh release create v$VERSION \"$DMG\" --title \"MixPill $VERSION\" --generate-notes"
+echo "  git add appcast.xml project.yml && git commit -m \"Release $VERSION\""
+echo "  git push"
 echo
-echo "Until SUPublicEDKey holds a real key, do not publish: unsigned updates"
-echo "are refused by Sparkle, which is the behaviour you want."
+echo "Pushing appcast.xml to main is what makes the update live — the DMG on"
+echo "its own updates nobody."

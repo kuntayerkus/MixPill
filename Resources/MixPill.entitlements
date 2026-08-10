@@ -8,8 +8,10 @@
 	     through the Mac App Store, and is deliberately not sandboxed: global
 	     hotkeys and quick gestures depend on Accessibility, and the app has to
 	     drive the system default output device. Nothing it does needs an
-	     entitlement — the two permissions it uses, Screen & System Audio
-	     Recording and Accessibility, are TCC grants the user makes explicitly.
+	     entitlement, and mixing needs no TCC grant at all: a signed app may
+	     open CoreAudio process taps without one. Accessibility is the only
+	     permission MixPill ever asks for, and only if you turn on global
+	     hotkeys.
 
 	     Enabling App Sandbox here would also require reinstating
 	     `com.apple.security.inherit` in Core/MixPillCore.entitlements; the two

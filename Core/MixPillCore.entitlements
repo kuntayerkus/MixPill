@@ -10,8 +10,9 @@
 	     would be inert at runtime and would force a provisioning profile onto
 	     every build.
 
-	     Screen & System Audio Recording is governed by TCC — attributed to the
-	     responsible process, MixPill.app — and never by an entitlement.
+	     Capture needs no entitlement and no TCC grant: CoreAudio process taps
+	     on named processes are available to any signed app. Nothing here is
+	     gated on a permission.
 
 	     The hardened runtime is enabled for this target in project.yml, which
 	     is what notarization actually requires. -->

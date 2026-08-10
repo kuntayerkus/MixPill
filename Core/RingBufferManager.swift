@@ -52,11 +52,6 @@ public final class RingBufferManager: @unchecked Sendable {
     public var underruns: Int { underrunCount.load(ordering: .relaxed) }
     public var drops: Int { dropCount.load(ordering: .relaxed) }
 
-    public func resetCounters() {
-        underrunCount.store(0, ordering: .relaxed)
-        dropCount.store(0, ordering: .relaxed)
-    }
-
     public init(capacityFrames: Int, channelCount: Int) {
         var powerOfTwo = 1
         while powerOfTwo < max(capacityFrames, 1) { powerOfTwo <<= 1 }
@@ -158,16 +153,6 @@ public final class RingBufferManager: @unchecked Sendable {
     }
 
     // MARK: - Consumer (render thread)
-
-    /// Fills up to `frameCount` frames into an AudioBufferList and
-    /// silence-pads any remainder. Returns true when real audio was read.
-    @discardableResult
-    public func read(frameCount: Int, into abl: UnsafeMutableAudioBufferListPointer) -> Bool {
-        var pointers: [UnsafeMutablePointer<Float>?] = (0..<abl.count).map { channel in
-            abl[channel].mData?.assumingMemoryBound(to: Float.self)
-        }
-        return read(frameCount: frameCount, intoPlanar: &pointers, channelCount: abl.count)
-    }
 
     /// Planar variant used by channel-strip scratch buffers: one raw
     /// pointer per channel, no AudioBufferList involved.

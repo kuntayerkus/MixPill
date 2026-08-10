@@ -16,7 +16,7 @@ public enum LaunchAtLoginService {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            print("LaunchAtLoginService: failed to update login item: \(error)")
+            MixPillLog.error("LaunchAtLoginService: failed to update login item: \(error)")
         }
     }
 }

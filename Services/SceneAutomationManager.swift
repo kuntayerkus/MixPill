@@ -65,7 +65,7 @@ public final class SceneAutomationManager {
 
         for rule in rules where rule.isEnabled && newlyLaunched.contains(rule.triggerAppBundleID) {
             guard let presetID = rule.presetID, let discoveryService else { continue }
-            print("SceneAutomation: rule '\(rule.name)' fired")
+            MixPillLog.log("SceneAutomation: rule '\(rule.name)' fired")
             presetManager?.applyPreset(id: presetID, to: discoveryService)
         }
     }
@@ -77,7 +77,7 @@ public final class SceneAutomationManager {
             let data = try JSONEncoder().encode(rules)
             UserDefaults.standard.set(data, forKey: Constants.StorageKeys.automationRules)
         } catch {
-            print("SceneAutomationManager: failed to save rules: \(error)")
+            MixPillLog.error("SceneAutomationManager: failed to save rules: \(error)")
         }
     }
 
@@ -86,7 +86,7 @@ public final class SceneAutomationManager {
         do {
             rules = try JSONDecoder().decode([AutomationRuleModel].self, from: data)
         } catch {
-            print("SceneAutomationManager: failed to load rules: \(error)")
+            MixPillLog.error("SceneAutomationManager: failed to load rules: \(error)")
         }
     }
 }

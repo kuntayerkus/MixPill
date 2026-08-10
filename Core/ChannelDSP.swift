@@ -1,12 +1,89 @@
 import Foundation
 import Accelerate
 
+/// The five parametric EQ sections, stored inline.
+///
+/// Deliberately **not** an array. The render thread reads this block out of
+/// an `RTParameterStore` on every callback, and a Swift array inside the
+/// parameter struct means a retain/release pair per load, plus — when the
+/// coefficients changed — a `flatMap` to hand vDSP a contiguous buffer.
+/// That last one is a heap allocation inside a CoreAudio render callback,
+/// which is exactly the kind of unbounded pause that turns into
+/// `kAudioDeviceProcessorOverload` and an audible click.
+///
+/// A fixed-width SIMD lane group is plain old data: the whole parameter
+/// block copies with a `memcpy`, and vDSP gets its pointer from the stack.
+struct EQCoefficients: Sendable, Equatable {
+    /// One section per band; the count never varies, because a flat band
+    /// becomes a pass-through section rather than being dropped.
+    static let sectionCount = 5
+    /// vDSP order: [b0, b1, b2, a1, a2].
+    static let coefficientsPerSection = 5
+    static let floatCount = sectionCount * coefficientsPerSection   // 25
+
+    /// 32 lanes for 25 values — the next SIMD width up. The slack is never
+    /// read; `floatCount` bounds every access.
+    private var storage = SIMD32<Float>()
+
+    init() {}
+
+    /// Builds a block from `sectionCount` rows of five coefficients.
+    init?(sections: [[Float]]) {
+        guard sections.count == Self.sectionCount else { return nil }
+        var index = 0
+        for section in sections {
+            guard section.count == Self.coefficientsPerSection else { return nil }
+            for coefficient in section {
+                storage[index] = coefficient
+                index += 1
+            }
+        }
+    }
+
+    subscript(index: Int) -> Float {
+        get { storage[index] }
+        set { storage[index] = newValue }
+    }
+
+    /// One section as an array. Off the render path only — this allocates.
+    func section(_ index: Int) -> [Float] {
+        let base = index * Self.coefficientsPerSection
+        return (0..<Self.coefficientsPerSection).map { storage[base + $0] }
+    }
+
+    /// Hands vDSP a contiguous `Float` pointer without touching the heap.
+    @inline(__always)
+    func withUnsafeCoefficients<R>(_ body: (UnsafePointer<Float>) -> R) -> R {
+        withUnsafePointer(to: storage) { pointer in
+            pointer.withMemoryRebound(to: Float.self, capacity: Self.floatCount) { body($0) }
+        }
+    }
+
+    /// The identity cascade: every section passes the signal through.
+    static let passThrough: EQCoefficients = {
+        var block = EQCoefficients()
+        for section in 0..<sectionCount {
+            block[section * coefficientsPerSection] = 1
+        }
+        return block
+    }()
+
+    /// `passThrough` as the `[Double]` vector `vDSP_biquad_CreateSetup` wants.
+    static var passThroughDoubles: [Double] {
+        (0..<floatCount).map { Double(passThrough[$0]) }
+    }
+}
+
 /// Immutable DSP parameter snapshot for one channel strip. Written on the
 /// control queue, observed on the render thread through an
-/// `RTParameterStore`. Every coefficient that depends on the sample rate
-/// is precomputed here at control time, so the render pass never touches
-/// a transcendental function except the compressor's level metering.
-struct ChannelDSPParameters: Sendable {
+/// `RTParameterStore`.
+///
+/// Every field is a trivial value, which is the point: `load()` on the
+/// render thread is a register/stack copy with no reference counting and no
+/// allocation. Every coefficient that depends on the sample rate is
+/// precomputed at control time, so the render pass never touches a
+/// transcendental function except the compressor's level metering.
+struct ChannelDSPParameters: Sendable, Equatable {
     var volume: Float
     var isMuted: Bool
     var noiseGateThreshold: Float
@@ -17,10 +94,11 @@ struct ChannelDSPParameters: Sendable {
     var duckingTarget: Float
     /// True when at least one EQ band is non-flat.
     var eqEnabled: Bool
-    /// 5 biquads × 5 coefficients in vDSP order [b0, b1, b2, a1, a2].
-    var eqCoefficients: [[Float]]
-    /// Bumped on every write so the render thread can detect new
-    /// coefficients without comparing the whole block.
+    /// Five biquad sections, inline.
+    var eqCoefficients: EQCoefficients
+    /// Bumped only when `eqCoefficients` actually changes, so the render
+    /// thread reloads the filter exactly when the filter is different —
+    /// not every time somebody nudges a volume slider.
     var generation: UInt64
 
     static let flat = ChannelDSPParameters(
@@ -31,7 +109,7 @@ struct ChannelDSPParameters: Sendable {
         processingBypassed: false,
         duckingTarget: 1.0,
         eqEnabled: false,
-        eqCoefficients: [],
+        eqCoefficients: EQCoefficients(),
         generation: 0
     )
 }
@@ -43,26 +121,23 @@ enum BiquadDesigner {
     static let bandFrequencies: [Float] = [100.0, 400.0, 1000.0, 4000.0, 10000.0]
     private static let bandwidthOctaves: Float = 1.0
 
-    /// Identity section: passes the signal through untouched.
-    private static let passThrough: [Float] = [1, 0, 0, 0, 0]
-
-    /// Returns exactly `bandFrequencies.count` biquad coefficient rows in
-    /// vDSP order, or nil when every gain is flat (the caller then skips
-    /// the EQ stage entirely).
+    /// Returns a full five-section block, or nil when every gain is flat
+    /// (the caller then skips the EQ stage entirely).
     ///
-    /// The row count is deliberately **constant**: a flat band becomes a
-    /// pass-through section rather than being dropped. `vDSP_biquad`'s
-    /// setup object is allocated for a fixed number of sections, so a
-    /// varying count would make `vDSP_biquad_SetCoefficientsSingle` write
-    /// past the setup and the delay state undersized.
-    static func peakingCoefficients(gains: [Float], sampleRate: Double) -> [[Float]]? {
+    /// The section count is deliberately **constant**: a flat band becomes a
+    /// pass-through section rather than being dropped. `vDSP_biquad`'s setup
+    /// object is allocated for a fixed number of sections, so a varying count
+    /// would make `vDSP_biquad_SetCoefficientsSingle` write past the setup
+    /// and leave the delay state undersized.
+    static func peakingCoefficients(gains: [Float], sampleRate: Double) -> EQCoefficients? {
         var anyNonFlat = false
-        var rows: [[Float]] = []
+        var block = EQCoefficients()
 
         for index in 0..<bandFrequencies.count {
+            let base = index * EQCoefficients.coefficientsPerSection
             let gainDB = index < gains.count ? gains[index] : 0
             if abs(gainDB) < 0.01 {
-                rows.append(passThrough)
+                block[base] = 1      // b0 = 1, everything else already zero
                 continue
             }
             anyNonFlat = true
@@ -83,10 +158,14 @@ enum BiquadDesigner {
             let a1 = -2.0 * cosW0
             let a2 = 1.0 - alpha / amplitude
 
-            rows.append([b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0])
+            block[base + 0] = b0 / a0
+            block[base + 1] = b1 / a0
+            block[base + 2] = b2 / a0
+            block[base + 3] = a1 / a0
+            block[base + 4] = a2 / a0
         }
 
-        return anyNonFlat ? rows : nil
+        return anyNonFlat ? block : nil
     }
 }
 
@@ -109,17 +188,25 @@ final class ChannelStripDSP: @unchecked Sendable {
     /// not chatter.
     private static let gateHysteresis: Float = 0.85
 
+    /// `vDSP_biquad` reads and writes `Delay[2*s]` and `Delay[2*s+1]` for
+    /// **s = 0 … S inclusive** — see the state save/restore loops in
+    /// `vDSP.h`. That is `2*S + 2` floats, not `2*S`. Sizing it at `2*S`
+    /// overran the buffer by eight bytes on every block of every EQ-enabled
+    /// channel, from inside the render callback. It survived the
+    /// guard-malloc checks because a 40-byte request lands inside a larger
+    /// allocation bucket, so the overrun never reached a guard page.
+    private static let delayCount = EQCoefficients.sectionCount * 2 + 2
+
     let parameters: RTParameterStore<ChannelDSPParameters>
 
     // MARK: Render-thread state
 
     private var appliedGeneration: UInt64 = 0
-    private var biquadSetup: vDSP_biquad_Setup?
-    /// Number of sections `biquadSetup` was allocated for. A setup can only
-    /// ever be updated with exactly this many sections.
-    private var setupSectionCount = 0
-    private var eqStateLeft: [Float] = []
-    private var eqStateRight: [Float] = []
+    /// Allocated once, for a fixed five sections, on the control thread.
+    /// The render path only ever updates its coefficients in place.
+    private let biquadSetup: vDSP_biquad_Setup?
+    private var eqStateLeft: [Float]
+    private var eqStateRight: [Float]
 
     private var gateOpen = true
     private var compressorGainReductionDB: Float = 0
@@ -131,11 +218,20 @@ final class ChannelStripDSP: @unchecked Sendable {
 
     init(initial: ChannelDSPParameters) {
         parameters = RTParameterStore(initial: initial)
+        eqStateLeft = [Float](repeating: 0, count: Self.delayCount)
+        eqStateRight = [Float](repeating: 0, count: Self.delayCount)
+        biquadSetup = vDSP_biquad_CreateSetup(
+            EQCoefficients.passThroughDoubles,
+            vDSP_Length(EQCoefficients.sectionCount)
+        )
+        if biquadSetup == nil {
+            MixPillCoreLog.log("ChannelStripDSP: biquad setup allocation failed; EQ will be bypassed")
+        }
     }
 
     deinit {
-        if let setup = biquadSetup {
-            vDSP_biquad_DestroySetup(setup)
+        if let biquadSetup {
+            vDSP_biquad_DestroySetup(biquadSetup)
         }
     }
 
@@ -146,6 +242,10 @@ final class ChannelStripDSP: @unchecked Sendable {
         compressorGainReductionDB = 0
         duckingMultiplier = parameters.load().duckingTarget
         hasAppliedGain = false
+        for index in 0..<Self.delayCount {
+            eqStateLeft[index] = 0
+            eqStateRight[index] = 0
+        }
     }
 
     // MARK: Render path
@@ -192,12 +292,8 @@ final class ChannelStripDSP: @unchecked Sendable {
         }
 
         // 2. Five-band parametric EQ (cascaded biquads).
-        if params.eqEnabled, let coefficients = params.eqCoefficients.isEmpty ? nil : params.eqCoefficients {
-            if params.generation != appliedGeneration {
-                prepareEQSetup(coefficients)
-                appliedGeneration = params.generation
-            }
-            runEQ(left: left, right: right, frameCount: frameCount, bands: coefficients.count)
+        if params.eqEnabled {
+            runEQ(params, left: left, right: right, frameCount: frameCount)
         }
 
         // 3. Feed-forward compressor (Night Mode), bypassed by default.
@@ -211,37 +307,24 @@ final class ChannelStripDSP: @unchecked Sendable {
 
     // MARK: Stages
 
-    private func prepareEQSetup(_ coefficients: [[Float]]) {
-        let count = coefficients.count
-        guard count > 0 else { return }
+    /// Loads new coefficients only when the generation moved, and even then
+    /// without allocating: the block is inline storage and vDSP writes into
+    /// a setup that was created once, for a fixed section count.
+    private func runEQ(_ params: ChannelDSPParameters,
+                       left: UnsafeMutablePointer<Float>,
+                       right: UnsafeMutablePointer<Float>,
+                       frameCount: Int) {
+        guard let setup = biquadSetup else { return }
 
-        let flatCoeffs = coefficients.flatMap { $0 }
-        guard flatCoeffs.count == count * 5 else { return }
-
-        if eqStateLeft.count != count * 2 {
-            eqStateLeft = [Float](repeating: 0, count: count * 2)
-            eqStateRight = [Float](repeating: 0, count: count * 2)
+        if params.generation != appliedGeneration {
+            params.eqCoefficients.withUnsafeCoefficients { coefficients in
+                vDSP_biquad_SetCoefficientsSingle(
+                    setup, coefficients, 0, vDSP_Length(EQCoefficients.sectionCount)
+                )
+            }
+            appliedGeneration = params.generation
         }
 
-        // A setup is bound to its section count for life; if the count ever
-        // changes, the old setup has to go rather than be written past.
-        if let setup = biquadSetup, setupSectionCount != count {
-            vDSP_biquad_DestroySetup(setup)
-            biquadSetup = nil
-            setupSectionCount = 0
-        }
-
-        if biquadSetup == nil {
-            let doubleCoeffs = flatCoeffs.map { Double($0) }
-            biquadSetup = vDSP_biquad_CreateSetup(doubleCoeffs, vDSP_Length(count))
-            setupSectionCount = biquadSetup == nil ? 0 : count
-        } else if let setup = biquadSetup {
-            vDSP_biquad_SetCoefficientsSingle(setup, flatCoeffs, 0, vDSP_Length(count))
-        }
-    }
-
-    private func runEQ(left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>, frameCount: Int, bands: Int) {
-        guard let setup = biquadSetup, eqStateLeft.count == bands * 2 else { return }
         let frames = vDSP_Length(frameCount)
         eqStateLeft.withUnsafeMutableBufferPointer { delayLeft in
             vDSP_biquad(setup, delayLeft.baseAddress!, left, 1, left, 1, frames)

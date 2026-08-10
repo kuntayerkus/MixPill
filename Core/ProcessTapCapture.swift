@@ -25,6 +25,20 @@ import Synchronization
 /// heartbeat, no permission that can be revoked mid-session. A tap either
 /// exists or it does not, and the HAL tells us when the world changes.
 final class ProcessTapCapture: @unchecked Sendable {
+    /// What the core currently manages to capture, and what it does not.
+    ///
+    /// This replaces a single `Bool`. With one flag, five successful taps
+    /// followed by one failure raised a banner, and the *next* successful
+    /// tap cleared it again — leaving an application permanently outside
+    /// the mix with nothing on screen to say so.
+    struct CaptureState: Sendable, Equatable {
+        var captured: Set<String> = []
+        /// bundle id → OSStatus of the most recent failure.
+        var failures: [String: OSStatus] = [:]
+        /// Display names for the failures, in the order they were seen.
+        var failureNames: [String] = []
+    }
+
     /// One captured application.
     private final class Tap {
         let bundleID: String
@@ -108,6 +122,15 @@ final class ProcessTapCapture: @unchecked Sendable {
     private static let standardCaptureFrames: UInt32 = 1024
     private static let lowLatencyCaptureFrames: UInt32 = 256
 
+    /// Ceiling on the stereo-mixdown gain correction.
+    ///
+    /// The correction is `deviceChannels / 2`, which is exactly right when
+    /// the mixdown averages across the device's width. If that assumption
+    /// is ever wrong the error is not subtle — it is a 30 dB step — so the
+    /// factor is capped at the widest interface the reasoning was verified
+    /// against, and anything beyond it is logged rather than applied.
+    private static let maximumMixdownCompensation: Float = 32
+
     private let lowLatency = Atomic<Bool>(false)
 
     /// Mirrors the user's Ultra-Low Latency preference. Existing taps are
@@ -123,33 +146,67 @@ final class ProcessTapCapture: @unchecked Sendable {
     private let lock = UnfairLock()
     private var taps: [String: Tap] = [:]
 
+    /// Serializes every change to the tap table.
+    ///
+    /// Creating and destroying taps used to happen on whichever queue
+    /// happened to call in — the discovery queue via `onProcessesChanged`,
+    /// the service queue via `applyConfiguration` / `applyChannel` /
+    /// `setLowLatencyEnabled`, and the resilience queue via `restartAll` —
+    /// with nothing serializing them. `sync` reads the live set under the
+    /// lock and then starts taps outside it, so two overlapping calls could
+    /// each decide the same application needed a tap. The second
+    /// `taps[bundleID] = tap` then dropped the first from the table without
+    /// ever stopping it: its IOProc kept running, its aggregate device kept
+    /// existing, and — because a tap mutes what it captures — the app stayed
+    /// muted for good once MixPill let go of the copy it still knew about.
+    ///
+    /// Everything that mutates the table now hops onto this one serial
+    /// queue, which also makes `excluded`, the failure table and the
+    /// published capture state queue-confined rather than racy.
+    private let lifecycleQueue = DispatchQueue(label: "com.mixpill.core.taps", qos: .userInitiated)
 
     private let mixer: LowLatencyMixerEngine
     private let registry: DeviceRegistry
     /// Overload notifications must not be delivered on an audio thread.
     private let overloadQueue = DispatchQueue(label: "com.mixpill.core.overload", qos: .utility)
 
-    /// Raised when tap creation starts or stops working, with the OSStatus
-    /// spelled out. The UI shows this verbatim rather than inventing an
-    /// explanation.
-    var onAvailabilityChanged: ((_ available: Bool, _ reason: String) -> Void)?
-    private var lastReportedAvailability: Bool?
+    /// Listener blocks keyed by the object they were installed on, so they
+    /// can be taken off again. `AudioObjectRemovePropertyListenerBlock`
+    /// matches on the block itself, so the reference has to be kept.
+    private var overloadListeners: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
+
+    /// Raised whenever the set of captured or failing applications changes.
+    /// The UI shows the failures verbatim rather than inventing an
+    /// explanation, and greys out the strips it cannot actually control.
+    var onCaptureStateChanged: ((CaptureState) -> Void)?
+    /// Supplies the current discovery snapshot so a failed tap can be
+    /// retried without waiting for the process list to change.
+    var currentProcessesProvider: () -> [AudioProcessRegistry.AudioProcess] = { [] }
+
+    private var captureState = CaptureState()
+    private var lastPublishedState: CaptureState?
+    private var displayNames: [String: String] = [:]
+    private var retryScheduled = false
+    private var retryRound = 0
 
     init(mixer: LowLatencyMixerEngine, registry: DeviceRegistry) {
         self.mixer = mixer
         self.registry = registry
     }
 
-    private func report(available: Bool, reason: String) {
-        guard lastReportedAvailability != available else { return }
-        lastReportedAvailability = available
-        onAvailabilityChanged?(available, reason)
+    /// The applications the engine is actually capturing right now. Read
+    /// from the service queue when building the app list.
+    var capturedBundleIDs: Set<String> {
+        lock.withLock { Set(taps.keys) }
     }
 
     // MARK: - Sync against discovery
 
     /// Applications to leave completely alone — see `setExcluded`.
     private var excluded: Set<String> = []
+    /// Applications the interface has described at all. Until an app is in
+    /// here, `DAWDetection` decides for it.
+    private var configuredBundleIDs: Set<String> = []
 
     /// Applications that must not be tapped at all.
     ///
@@ -161,47 +218,39 @@ final class ProcessTapCapture: @unchecked Sendable {
     /// outright. A digital audio workstation on a 32-channel interface
     /// wants none of that. Leaving it untapped gives it its own output
     /// path back, exactly as if MixPill were not running.
-    func setExcluded(_ bundleIDs: Set<String>) {
-        let newlyExcluded = lock.withLock { () -> [String] in
-            let added = bundleIDs.subtracting(excluded)
-            excluded = bundleIDs
-            return Array(added.filter { taps[$0] != nil })
-        }
-        for bundleID in newlyExcluded {
-            stop(bundleID: bundleID)
-        }
+    ///
+    /// The set is the single authority. `DAWDetection` only decides the
+    /// *default* value the interface sends for a newly seen app, so the
+    /// user can put anything into DAW Direct — and take a DAW back out of
+    /// it — instead of the engine second-guessing them.
+    /// - Parameters:
+    ///   - bundleIDs: applications the interface has put on DAW Direct.
+    ///   - configured: every application the interface has described at all.
+    ///     A recognised DAW that is *not* in this set has not been
+    ///     configured yet, and stays untapped until it is — waiting for the
+    ///     first channel snapshot would otherwise mean tapping a DAW for the
+    ///     first second of its life, which is exactly when somebody is
+    ///     likely to be recording.
+    func setExcluded(_ bundleIDs: Set<String>, configured: Set<String>) {
+        lifecycleQueue.async { self.performSetExcluded(bundleIDs, configured: configured) }
     }
 
     /// Aligns live taps with the set of applications we want captured.
     func sync(with processes: [AudioProcessRegistry.AudioProcess]) {
-        let skip = lock.withLock { excluded }
-        let wanted = processes.filter {
-            !skip.contains($0.bundleID) && !DAWDetection.isDAW(bundleID: $0.bundleID)
-        }
-        let desired = Dictionary(wanted.map { ($0.bundleID, $0) }, uniquingKeysWith: { first, _ in first })
-        let active = lock.withLock { Set(taps.keys) }
-
-        for bundleID in active.subtracting(desired.keys) {
-            stop(bundleID: bundleID)
-        }
-
-        for (bundleID, process) in desired where !active.contains(bundleID) {
-            start(process: process)
-        }
+        lifecycleQueue.async { self.performSync(with: processes) }
     }
 
     func stopAll() {
-        let bundleIDs = lock.withLock { Array(taps.keys) }
-        for bundleID in bundleIDs {
-            stop(bundleID: bundleID)
-        }
+        lifecycleQueue.async { self.performStopAll() }
     }
 
     /// After a device or clock change, tear every tap down and rebuild it
     /// against the new world.
     func restartAll(with processes: [AudioProcessRegistry.AudioProcess]) {
-        stopAll()
-        sync(with: processes)
+        lifecycleQueue.async {
+            self.performStopAll()
+            self.performSync(with: processes)
+        }
     }
 
     var activeTapCount: Int {
@@ -213,9 +262,105 @@ final class ProcessTapCapture: @unchecked Sendable {
         lock.withLock { taps.values.reduce(0) { $0 + $1.lateCallbacks.load(ordering: .relaxed) } }
     }
 
+    // MARK: - Lifecycle work (lifecycleQueue only)
+
+    private func performSetExcluded(_ bundleIDs: Set<String>, configured: Set<String>) {
+        let added = bundleIDs.subtracting(excluded)
+        excluded = bundleIDs
+        configuredBundleIDs.formUnion(configured)
+        let live = lock.withLock { Set(taps.keys) }
+        for bundleID in added where live.contains(bundleID) {
+            performStop(bundleID: bundleID)
+        }
+        // An app taken out of DAW Direct should not have to wait for the
+        // next discovery event to be picked up.
+        performSync(with: currentProcessesProvider())
+    }
+
+    /// Whether this application should be captured right now.
+    private func shouldCapture(_ bundleID: String) -> Bool {
+        if excluded.contains(bundleID) { return false }
+        // Unconfigured DAWs stay untapped. `DAWDetection` only supplies the
+        // *default*, so once the interface has described the channel its
+        // answer wins — which is what makes the DAW Direct switch on the row
+        // able to turn off as well as on.
+        if DAWDetection.isDAW(bundleID: bundleID) && !configuredBundleIDs.contains(bundleID) {
+            return false
+        }
+        return true
+    }
+
+    private func performSync(with processes: [AudioProcessRegistry.AudioProcess]) {
+        for process in processes {
+            displayNames[process.bundleID] = process.name
+        }
+
+        let wanted = processes.filter { shouldCapture($0.bundleID) }
+        let desired = Dictionary(wanted.map { ($0.bundleID, $0) }, uniquingKeysWith: { first, _ in first })
+        let active = lock.withLock { Set(taps.keys) }
+
+        for bundleID in active.subtracting(desired.keys) {
+            performStop(bundleID: bundleID)
+        }
+
+        // Drop failures for apps that are gone or now excluded.
+        for bundleID in captureState.failures.keys where desired[bundleID] == nil {
+            captureState.failures.removeValue(forKey: bundleID)
+        }
+
+        for (bundleID, process) in desired where !active.contains(bundleID) {
+            performStart(process: process)
+        }
+
+        publishCaptureState()
+        scheduleRetryIfNeeded()
+    }
+
+    private func performStopAll() {
+        let bundleIDs = lock.withLock { Array(taps.keys) }
+        for bundleID in bundleIDs {
+            performStop(bundleID: bundleID)
+        }
+        publishCaptureState()
+    }
+
+    /// Republishes the capture picture when it actually moved.
+    private func publishCaptureState() {
+        captureState.captured = lock.withLock { Set(taps.keys) }
+        captureState.failureNames = captureState.failures.keys
+            .map { displayNames[$0] ?? $0 }
+            .sorted()
+
+        guard captureState != lastPublishedState else { return }
+        lastPublishedState = captureState
+        onCaptureStateChanged?(captureState)
+    }
+
+    /// A tap that failed once usually succeeds later — the HAL is briefly
+    /// busy after a device change, or the app was mid-launch. Retrying with
+    /// a backoff costs nothing (tap creation is stateless) and is the
+    /// difference between "that app is permanently outside the mixer" and
+    /// "it joined a few seconds late".
+    private func scheduleRetryIfNeeded() {
+        guard !captureState.failures.isEmpty else {
+            retryRound = 0
+            return
+        }
+        guard !retryScheduled else { return }
+        retryScheduled = true
+
+        let delay = min(30.0, pow(2.0, Double(retryRound)))
+        retryRound += 1
+        lifecycleQueue.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            self.retryScheduled = false
+            self.performSync(with: self.currentProcessesProvider())
+        }
+    }
+
     // MARK: - Tap lifecycle
 
-    private func start(process: AudioProcessRegistry.AudioProcess) {
+    private func performStart(process: AudioProcessRegistry.AudioProcess) {
         // Capture as a stereo mixdown, and undo its attenuation.
         //
         // A device-format tap is exact but carries the device's full width:
@@ -235,11 +380,15 @@ final class ProcessTapCapture: @unchecked Sendable {
         // nothing happens at all.
         let deviceUID = registry.defaultOutputDeviceUID()
         let deviceChannels = deviceUID.map { registry.channelCount(forUID: $0) } ?? 2
-        let compensation = Float(max(1, deviceChannels / 2))
+        let rawCompensation = Float(max(1, deviceChannels / 2))
+        let compensation = min(rawCompensation, Self.maximumMixdownCompensation)
+        if rawCompensation > Self.maximumMixdownCompensation {
+            MixPillCoreLog.log("ProcessTapCapture: mixdown compensation ×\(rawCompensation) exceeds the verified ceiling; clamping to ×\(compensation)")
+        }
 
-        func makeDescription(boundToDevice: Bool) -> CATapDescription {
+        func makeDescription(stereoMixdown: Bool) -> CATapDescription {
             let description: CATapDescription
-            if boundToDevice {
+            if stereoMixdown {
                 description = CATapDescription(stereoMixdownOfProcesses: process.objectIDs)
             } else if let deviceUID, !deviceUID.isEmpty {
                 // Fallback: the device's own format. Exact, just expensive.
@@ -263,30 +412,29 @@ final class ProcessTapCapture: @unchecked Sendable {
             return description
         }
 
-        // Prefer the device-format tap; fall back to the mixdown if this
-        // device will not give us one. The fallback is quiet on a wide
-        // interface, but quiet beats silent, and it is exactly right on the
-        // stereo endpoints most Macs actually use.
-        var description = makeDescription(boundToDevice: true)
+        // Prefer the cheap stereo mixdown; fall back to the device's own
+        // format if this device will not give us one.
+        var description = makeDescription(stereoMixdown: true)
         var tapID = AudioObjectID(kAudioObjectUnknown)
         var tapStatus = AudioHardwareCreateProcessTap(description, &tapID)
 
         if tapStatus != noErr || tapID == kAudioObjectUnknown, deviceUID != nil {
             MixPillCoreLog.log("ProcessTapCapture: stereo tap unavailable for \(process.bundleID) (status \(tapStatus)); falling back to the device format")
-            description = makeDescription(boundToDevice: false)
+            description = makeDescription(stereoMixdown: false)
             tapID = kAudioObjectUnknown
             tapStatus = AudioHardwareCreateProcessTap(description, &tapID)
         }
 
         guard tapStatus == noErr, tapID != kAudioObjectUnknown else {
             MixPillCoreLog.log("ProcessTapCapture: could not tap \(process.bundleID) (status \(tapStatus))")
-            report(available: false, reason: "macOS refused an audio tap (error \(tapStatus)).")
+            recordFailure(process: process, status: tapStatus)
             return
         }
 
         guard let format = tapFormat(of: tapID) else {
             MixPillCoreLog.log("ProcessTapCapture: no stream format for \(process.bundleID)")
             AudioHardwareDestroyProcessTap(tapID)
+            recordFailure(process: process, status: kAudioHardwareUnspecifiedError)
             return
         }
 
@@ -343,6 +491,7 @@ final class ProcessTapCapture: @unchecked Sendable {
         guard aggregateStatus == noErr, aggregateID != kAudioObjectUnknown else {
             MixPillCoreLog.log("ProcessTapCapture: aggregate failed for \(process.bundleID) (status \(aggregateStatus))")
             AudioHardwareDestroyProcessTap(tapID)
+            recordFailure(process: process, status: aggregateStatus)
             return
         }
         tap.aggregateID = aggregateID
@@ -376,6 +525,7 @@ final class ProcessTapCapture: @unchecked Sendable {
             MixPillCoreLog.log("ProcessTapCapture: IOProc failed for \(process.bundleID) (status \(ioStatus))")
             AudioHardwareDestroyAggregateDevice(aggregateID)
             AudioHardwareDestroyProcessTap(tapID)
+            recordFailure(process: process, status: ioStatus)
             return
         }
         tap.ioProcID = ioProcID
@@ -392,7 +542,8 @@ final class ProcessTapCapture: @unchecked Sendable {
         let startStatus = AudioDeviceStart(aggregateID, ioProcID)
         guard startStatus == noErr else {
             MixPillCoreLog.log("ProcessTapCapture: start failed for \(process.bundleID) (status \(startStatus))")
-            stop(bundleID: process.bundleID)
+            performStop(bundleID: process.bundleID)
+            recordFailure(process: process, status: startStatus)
             return
         }
 
@@ -411,11 +562,22 @@ final class ProcessTapCapture: @unchecked Sendable {
             }
         }
 
-        report(available: true, reason: "")
+        captureState.failures.removeValue(forKey: process.bundleID)
+
+        // A tapped app is muted at source, so it needs somewhere for its
+        // audio to land before the interface gets around to describing the
+        // channel.
+        mixer.ensureStrip(for: process.bundleID)
+
         MixPillCoreLog.log("ProcessTapCapture: tapped \(process.bundleID) — \(process.objectIDs.count) process object(s), \(Int(format.mSampleRate)) Hz, \(tap.sourceChannelCount) ch, ×\(tap.mixdownCompensation) compensation, \(actualFrames == 0 ? captureBufferFrames : actualFrames)-frame blocks")
     }
 
-    private func stop(bundleID: String) {
+    private func recordFailure(process: AudioProcessRegistry.AudioProcess, status: OSStatus) {
+        displayNames[process.bundleID] = process.name
+        captureState.failures[process.bundleID] = status
+    }
+
+    private func performStop(bundleID: String) {
         let tap = lock.withLock { taps.removeValue(forKey: bundleID) }
         guard let tap else { return }
 
@@ -424,6 +586,7 @@ final class ProcessTapCapture: @unchecked Sendable {
             AudioDeviceDestroyIOProcID(tap.aggregateID, ioProcID)
         }
         if tap.aggregateID != kAudioObjectUnknown {
+            removeOverloadListener(from: tap.aggregateID)
             AudioHardwareDestroyAggregateDevice(tap.aggregateID)
         }
         if tap.tapID != kAudioObjectUnknown {
@@ -433,6 +596,36 @@ final class ProcessTapCapture: @unchecked Sendable {
         MixPillCoreLog.log("ProcessTapCapture: released \(bundleID)")
     }
 
+    /// Watches one device for `kAudioDeviceProcessorOverload`.
+    ///
+    /// The block is retained so it can be taken off again: aggregate
+    /// devices come and go on every device change, wake and Ultra-Low
+    /// Latency toggle, and a listener left behind on each one accumulates
+    /// for as long as the service lives — which is longer than the UI.
+    private func observeOverload(on deviceID: AudioObjectID, label: String) {
+        guard overloadListeners[deviceID] == nil else { return }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDeviceProcessorOverload,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let block: AudioObjectPropertyListenerBlock = { _, _ in
+            MixPillCoreLog.log("Overload: capture IO for \(label) missed its deadline — this is an audible dropout")
+        }
+        guard AudioObjectAddPropertyListenerBlock(deviceID, &address, overloadQueue, block) == noErr else { return }
+        overloadListeners[deviceID] = block
+    }
+
+    private func removeOverloadListener(from deviceID: AudioObjectID) {
+        guard let block = overloadListeners.removeValue(forKey: deviceID) else { return }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDeviceProcessorOverload,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectRemovePropertyListenerBlock(deviceID, &address, overloadQueue, block)
+    }
+
     /// The tap's stream format, as the raw description.
     ///
     /// Deliberately not wrapped in `AVAudioFormat`: that initializer
@@ -440,18 +633,6 @@ final class ProcessTapCapture: @unchecked Sendable {
     /// explicit `AVAudioChannelLayout`, so on a 64-channel interface every
     /// tap looked like it had "no stream format" and capture went silent.
     /// Channel count and sample rate are all this needs.
-    /// Watches one device for `kAudioDeviceProcessorOverload`.
-    private func observeOverload(on deviceID: AudioObjectID, label: String) {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioDeviceProcessorOverload,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        AudioObjectAddPropertyListenerBlock(deviceID, &address, overloadQueue) { _, _ in
-            MixPillCoreLog.log("Overload: capture IO for \(label) missed its deadline — this is an audible dropout")
-        }
-    }
-
     private func tapFormat(of tapID: AudioObjectID) -> AudioStreamBasicDescription? {
         var address = AudioProcessRegistry.address(kAudioTapPropertyFormat)
         var description = AudioStreamBasicDescription()
