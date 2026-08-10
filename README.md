@@ -34,8 +34,9 @@ no reboot, nothing left behind if you delete the app.
 │  ChannelConfigStore — persistence, the desired state       │
 │  CoreBridge — NSXPCConnection client, reconnecting         │
 └──────────▲──────────────────────────────┬──────────────────┘
-     apps, levels (10 Hz),         config snapshot,
-     devices, recoveries           channel updates
+     apps, levels (30 Hz watched,   config snapshot,
+     10 Hz closed, 1 Hz idle),      batched channel
+     devices, recoveries            updates
            │                              ▼
 ┌──────────┴──────── MixPillCore.xpc (audio engine) ─────────┐
 │  AudioProcessRegistry                                      │
@@ -43,12 +44,14 @@ no reboot, nothing left behind if you delete the app.
 │      folded into the app that owns them                    │
 │  ProcessTapCapture                                         │
 │      one muted tap + private aggregate device per app,     │
-│      IOProc → meter → lock-free ring                       │
+│      IOProc → meter → lock-free ring; every change to      │
+│      the tap table on one serial queue                     │
 │  LowLatencyMixerEngine                                     │
-│      one AUHAL unit per (device, channel pair); a single   │
-│      render pass: ring → gate → 5×biquad → compressor →    │
-│      gain → master, inline vDSP on a time-constraint       │
-│      thread                                                │
+│      one AUHAL unit per (device, channel pair), started    │
+│      on demand and released when idle; a single render     │
+│      pass: ring → gate → 5×biquad → compressor → gain →    │
+│      master → limiter, inline vDSP on a time-constraint    │
+│      thread, allocation-free                               │
 │  DeviceRegistry · DuckingController · CoreResilienceEngine │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -58,26 +61,42 @@ app and the music keeps playing with the last configuration it received.
 
 ## Features
 
-- **Per-app mixing.** Independent volume, mute and live RMS meters for
-  every application that plays audio.
+- **Per-app mixing.** Independent volume, mute, solo and live meters for
+  every application that plays audio. Faders travel on a dB scale with
+  unity at 80% and 6 dB of boost above it, so a quietly mastered podcast
+  or a too-soft conference call can be brought *up*, and the bottom of the
+  travel is usable instead of being a cliff.
+- **Meters that read like meters.** dBFS scale, −12 dB reference tick,
+  amber and red where those levels actually are, and a held clip indicator.
+  A linear-amplitude meter puts ordinary programme material at an eighth
+  of the bar and never reaches its own red zone.
 - **One strip per app, not per process.** A browser plays through helper
   processes; MixPill folds them into a single "Google Chrome" channel by
   resolving each audio process back to the bundle that owns it. System
   daemons never appear, and are never tapped.
 - **5-band EQ and noise gate.** One-tap presets — Vocal Clarity, Bass
-  Boost, Night Mode — or shape all five bands yourself.
+  Boost, Night Mode — or shape all five bands yourself, against a live
+  curve drawn from the same biquad maths the engine runs. The gate
+  threshold is in dBFS, because "0.07" is not a level anybody can picture.
 - **Smart Ducking.** Background apps dip to 20% while someone is on a
   call. "On a call" means *a process is holding the microphone* — the HAL
   knows this for every app, so FaceTime, Meet in a browser and whatever
   ships next all work without being listed anywhere. Ducking runs in the
   core service, so it keeps working with the interface closed.
-- **Routing matrix.** Pin any app to any output device, or to a specific
-  channel pair (Outputs 1-2, 3-4, …) on multi-channel interfaces.
+- **Routing.** Pin any app to any output device, or to a specific channel
+  pair (Outputs 1-2, 3-4, …) on multi-channel interfaces — from the app's
+  own row, or from the Routing tab. That tab draws a matrix while there
+  are a handful of destinations and switches to one grouped menu per app
+  beyond that, because a 64-channel interface contributes 32 pairs and a
+  33-column grid is not a control anybody can use.
 - **DAW Direct.** Logic Pro, Ableton Live, Pro Tools, Cubase, FL Studio
-  and Studio One are detected automatically and left **completely
-  untapped** — MixPill does not capture, mute or re-play them. A DAW keeps
-  its own monitoring latency, its own multi-output routing and its own
-  buffer size, exactly as if MixPill were not installed.
+  and Studio One default to **completely untapped** — MixPill does not
+  capture, mute or re-play them, so a DAW keeps its own monitoring
+  latency, its own multi-output routing and its own buffer size, exactly
+  as if MixPill were not installed. The switch is on every row, not just
+  the recognised ones: anything that routes to more than one output pair
+  wants it, and a DAW you deliberately want in the mix can be switched
+  back on.
 - **Survives the world changing.** Sleep/wake, `coreaudiod` restarts,
   device hot-plug and sample-rate changes all rebuild the engine in
   place.
@@ -85,22 +104,42 @@ app and the music keeps playing with the last configuration it received.
   preset or toggle ducking from an App Intent — so "when I join a meeting,
   drop Spotify" is an automation the system runs, not a rules table inside
   a menu bar app.
-- **Undo.** ⌘Z steps back through volume, mute and EQ changes; a slider
-  drag collapses into a single step rather than a hundred.
+- **Undo.** ⌘Z steps back through volume, mute, EQ and routing changes; a
+  slider drag collapses into a single step rather than a hundred, and
+  applying a preset is one step rather than one per app. The popover shows
+  what ⌘Z will undo, so the shortcut is findable.
+- **Presets that hold everything.** A preset captures each app's volume,
+  mute, EQ, noise gate, Night Mode, output and DAW Direct state — not just
+  its level. Name them, overwrite them, and see which one the mixer
+  currently matches. Presets written by older versions still load and
+  still change only what they captured.
+- **Nothing running when nothing is playing.** The output unit is released
+  after the last channel goes quiet, so the audio device can idle instead
+  of being held awake for as long as MixPill is installed.
 - **Web audio.** Safari plays through WebKit's shared GPU process, which
   no public API can attribute to a specific app. Rather than leave the
   Mac's default browser uncontrollable, that audio gets its own channel,
   named for Safari when Safari is running and "Web Content" when it is
   not. It appears only while it is playing.
+- **Keyboard and pointer both work.** The popover opens focused on search;
+  Return moves into the list, ↑↓ walk it, ←→ ride the fader, `M` mutes and
+  `S` solos. Reduce Motion is honoured throughout.
 - **Privacy first.** Entirely on-device. No account, no analytics. The
   only request that ever leaves your Mac is the check for an update.
+- **English and Turkish.** Every string lives in the catalog, so a third
+  language is a translation pass rather than a code change.
 
 ## Latency
 
 Mixing runs in a single CoreAudio render callback: lock-free ring read →
-noise gate → 5-band biquad EQ → compressor → channel gain → master gain,
-all inline vDSP on a Mach time-constraint thread. Playback runs at 256
-frames (≈5 ms), or 128 (≈3 ms) in Ultra-Low Latency.
+noise gate → 5-band biquad EQ → compressor → channel gain → master gain →
+brickwall limiter, all inline vDSP on a Mach time-constraint thread.
+Playback runs at 256 frames (≈5 ms), or 128 (≈3 ms) in Ultra-Low Latency.
+
+Nothing in that pass allocates. The parameter block the render thread
+reads is plain old data — the five biquad sections are inline SIMD storage
+rather than nested arrays — so a parameter change costs a `memcpy` and a
+`vDSP_biquad_SetCoefficientsSingle`, never a `malloc` behind a deadline.
 
 Capture is deliberately slower: 1024 frames (≈21 ms), dropping to 256 in
 Ultra-Low Latency. The ring absorbs that delay, while the deadline
@@ -155,7 +194,8 @@ targets are produced:
 
 | Layer | Files |
 |---|---|
-| Shared contract | `Shared/` — XPC protocols, DTOs, identifiers |
+| Shared contract | `Shared/` — XPC protocols, DTOs, identifiers, `MixEngineKey` |
+| Shared by both targets | `Utilities/` — `AudioScale` (every dB/fader/meter conversion), constants, locking |
 | UI entry | `App/MixPillApp.swift`, `App/AppDelegate.swift` |
 | UI ↔ core | `App/CoreBridge.swift`, `App/ChannelConfigStore.swift` |
 | UI models | `Models/` |
@@ -172,13 +212,20 @@ targets are produced:
 HAL or XPC dependency, so they run standalone:
 
 ```bash
-Tests/DSPChecks/run.sh           # 23 assertions
+Tests/DSPChecks/run.sh           # 67 checks
 Tests/DSPChecks/run.sh --guard   # …under libgmalloc
 ```
 
+They cover the ring buffer, the filter chain, the routing pair id
+(`MixEngineKey`), the fader and meter scales, and preset migration —
+everything that is pure value logic, which is most of what has ever been
+wrong.
+
 Run the guard-malloc variant before shipping changes to the audio path.
-Both bugs these checks were written for were heap overruns, and an
-overrun does not reliably crash on its own.
+Three of the bugs these checks were written for were heap overruns,
+including a `vDSP_biquad` delay buffer sized `2×sections` when the
+documented requirement is `2×sections + 2`. An overrun does not reliably
+crash on its own.
 
 **Watching the engine.** MixPillCore is launched by launchd, so its
 stdout goes nowhere. Diagnostics go to the unified log:
@@ -189,13 +236,19 @@ log stream --predicate 'subsystem == "com.mixpill.core"' --level debug
 
 **Strings.** Every user-facing string lives in
 `Resources/Localizable.xcstrings`. Xcode syncs it when you build in the
-IDE; from a terminal, run `Tools/sync-strings.sh`. English is the only
-shipping language today, but adding one is a translation pass rather than
-a refactor.
+IDE; from a terminal, run `Tools/sync-strings.sh`. English and Turkish
+ship today; adding a third is a translation pass rather than a refactor.
 
-**Releasing.** `Tools/release.sh 3.1.0` archives, signs with Developer ID,
-notarizes, staples, runs Gatekeeper's own assessment and produces a signed
-DMG, then prints the three commands that publish it. See
+**Watching the interface.** The app target logs to its own subsystem:
+
+```bash
+log stream --predicate 'subsystem == "com.mixpill.app"' --level debug
+```
+
+**Releasing.** `Tools/release.sh 3.2.0` stamps the version into
+`project.yml`, archives, signs with Developer ID, notarizes, staples, runs
+Gatekeeper's own assessment, produces a signed DMG **and writes a signed
+`appcast.xml`**, then prints the commands that publish it. See
 [Releasing](#releasing) below for what has to exist first.
 
 **Icon.** `Tools/GenerateAppIcon` renders the full macOS size ladder and
@@ -231,13 +284,19 @@ GitHub Releases, so publishing needs no web hosting.
 **Each release**
 
 ```bash
-Tools/release.sh 3.1.0
+Tools/release.sh 3.2.0
 ```
 
-It archives, signs, notarizes, staples, checks Gatekeeper's verdict and
-builds a signed DMG, then prints the `gh release create`,
-`generate_appcast` and `git push` commands to finish the job. Pushing the
-regenerated `appcast.xml` to `main` is what makes the update live.
+It stamps the version and bumps the build number in `project.yml`,
+archives, signs, notarizes, staples, checks Gatekeeper's verdict, builds a
+signed DMG and regenerates `appcast.xml`, then prints the
+`gh release create` and `git push` commands to finish the job.
+
+**Pushing `appcast.xml` to `main` is what makes the update live.** The
+feed URL points into this repository, so a release whose appcast never
+lands is a release no installed copy will ever be offered — which is
+exactly what happened to 3.1.0. The script now generates and verifies the
+feed rather than leaving it as a printed reminder.
 
 One trap worth knowing, because it fails silently: `generate_appcast`
 signs an update only if the archived app's `SUPublicEDKey` matches the
@@ -256,7 +315,13 @@ ever run the tool by hand, check the output contains
 - An app tapped by MixPill is muted at source, so an application routing
   to several output pairs at once has the pairs MixPill does not replay
   silenced. Known DAWs are excluded automatically; anything else with
-  multi-output routing should be switched to DAW Direct by hand.
+  multi-output routing can be switched to DAW Direct from its own row.
+  A channel MixPill is not capturing says so and disables its controls,
+  rather than offering a fader that moves without changing the sound.
+- Menu-bar-only applications (`LSUIElement`) are not listed. Discovery
+  keeps to processes owned by an app with a Dock presence, which is what
+  keeps daemons out of the mixer — muting `systemsoundserverd` would
+  silence system alerts — but it excludes a menu bar music player too.
 - While a tap is open the app is muted at the system level, which means
   its audio is subject to MixPill being alive to re-play it. The core
   service is deliberately separate from the UI for exactly this reason,
