@@ -1,16 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="MixPill">
-  <defs>
-    <mask id="mixpill-mark" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
-      <rect width="1024" height="1024" fill="#000"/>
-      <path fill="#fff" fill-rule="evenodd" d="M565.760 403.456H744.960A108.544 108.544 0 0 1 744.960 620.544H565.760A108.544 108.544 0 0 1 565.760 403.456ZM565.760 466.944H744.960A45.056 45.056 0 0 1 744.960 557.056H565.760A45.056 45.056 0 0 1 565.760 466.944Z"/>
-      <path fill="#fff" d="M279.040 403.456H458.240A108.544 108.544 0 0 1 458.240 620.544H279.040A108.544 108.544 0 0 1 279.040 403.456Z"/>
-      <path fill="#000" d="M512.000 390.218A133.120 133.120 0 0 1 512.000 633.782Z"/>
-      <path fill="#fff" d="M512.000 417.704A108.544 108.544 0 0 1 512.000 606.296Z"/>
-      <path fill="#000" d="M512.000 390.218A133.120 133.120 0 0 0 512.000 633.782Z"/>
-      <path fill="#fff" d="M512.000 417.704A108.544 108.544 0 0 0 512.000 606.296Z"/>
-    </mask>
-  </defs>
-  <g transform="rotate(-45 512 512)">
-    <rect width="1024" height="1024" fill="currentColor" mask="url(#mixpill-mark)"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" aria-label="MixPill" role="img" viewBox="0 0 1024 1024"><defs><mask id="mixpill-mark" width="1024" height="1024" x="0" y="0" maskUnits="userSpaceOnUse"><rect width="1024" height="1024" fill="#000"/><path fill="#fff" fill-rule="evenodd" d="M565.760 403.456H744.960A108.544 108.544 0 0 1 744.960 620.544H565.760A108.544 108.544 0 0 1 565.760 403.456ZM565.760 466.944H744.960A45.056 45.056 0 0 1 744.960 557.056H565.760A45.056 45.056 0 0 1 565.760 466.944Z"/><path fill="#fff" d="M279.040 403.456H458.240A108.544 108.544 0 0 1 458.240 620.544H279.040A108.544 108.544 0 0 1 279.040 403.456Z"/><path fill="#000" d="M512.000 390.218A133.120 133.120 0 0 1 512.000 633.782Z"/><path fill="#fff" d="M512.000 417.704A108.544 108.544 0 0 1 512.000 606.296Z"/><path fill="#000" d="M512.000 390.218A133.120 133.120 0 0 0 512.000 633.782Z"/><path fill="#fff" d="M512.000 417.704A108.544 108.544 0 0 0 512.000 606.296Z"/></mask></defs><g transform="rotate(-45 512 512)"><rect width="1024" height="1024" fill="currentColor" mask="url(#mixpill-mark)"/></g></svg>
