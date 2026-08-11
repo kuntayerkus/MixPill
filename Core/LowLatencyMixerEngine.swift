@@ -16,6 +16,11 @@ final class ChannelStrip: @unchecked Sendable {
     /// The engine this strip currently feeds.
     var routingKey: MixEngineKey
     var eqGains: [Float]
+    /// The last state reported to the log, so the line appears when
+    /// something changed and not merely when a message arrived. The whole
+    /// channel table is re-sent every time any application starts or stops
+    /// playing, which is often enough to bury the signal. Control queue.
+    var loggedState: String = ""
 
     /// Render scratch capacity, in frames.
     ///
@@ -72,6 +77,15 @@ final class DeviceOutputEngine: @unchecked Sendable {
     /// by `LowLatencyMixerEngine` so the render callback needs nothing but
     /// a relaxed atomic load.
     let masterGain = Atomic<Float>(1.0)
+
+    /// The limiter's current gain, published for the interface.
+    ///
+    /// Without this the limiter is the one stage in the chain that can
+    /// silently overrule the user: on a modern master peaking near full
+    /// scale, half of a +6 dB channel boost is spent holding the sum under
+    /// the ceiling, and the fader simply appears not to work. A render
+    /// thread cannot say so — but it can store one float.
+    let limiterGainBits = Atomic<UInt32>(Float(1.0).bitPattern)
 
     /// Set the first time this engine's render thread runs, so the Mach
     /// time-constraint policy is requested exactly once per thread.
@@ -141,7 +155,7 @@ final class DeviceOutputEngine: @unchecked Sendable {
             mBitsPerChannel: 32,
             mReserved: 0
         )
-        AudioUnitSetProperty(
+        let formatStatus = AudioUnitSetProperty(
             unit,
             kAudioUnitProperty_StreamFormat,
             kAudioUnitScope_Input,
@@ -149,6 +163,16 @@ final class DeviceOutputEngine: @unchecked Sendable {
             &format,
             UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
         )
+        // Worth checking rather than assuming, because the failure mode is
+        // invisible until it is expensive: if the client format does not
+        // take, the render callback is handed the *device's* width instead
+        // of stereo — 64 buffers per cycle on a large interface, 62 of them
+        // existing only to be cleared. That is the shape of a deadline miss
+        // that looks like it came from nowhere.
+        if formatStatus != noErr {
+            MixPillCoreLog.log("DeviceOutputEngine: client stream format rejected (status \(formatStatus)); the render callback will run at the device's width")
+        }
+        logRenderWidth(unit: unit)
 
         // Ask for the requested I/O block size; the device may clamp it.
         var frameSize = requestedBufferFrames
@@ -217,6 +241,25 @@ final class DeviceOutputEngine: @unchecked Sendable {
         }
         unit = nil
         running = false
+    }
+
+    /// Records how wide the render callback will actually be.
+    ///
+    /// The callback fills the unit's *input* scope, so that format — not the
+    /// device's — decides how many buffers arrive per cycle and therefore
+    /// how much of each block is spent clearing channels nobody asked for.
+    /// Reading it back at start settles that from the HAL instead of from
+    /// an assumption, and costs nothing on the audio thread.
+    private func logRenderWidth(unit: AudioUnit) {
+        func channels(_ scope: AudioUnitScope) -> UInt32? {
+            var description = AudioStreamBasicDescription()
+            var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+            guard AudioUnitGetProperty(unit, kAudioUnitProperty_StreamFormat, scope, 0, &description, &size) == noErr else { return nil }
+            return description.mChannelsPerFrame
+        }
+        let client = channels(kAudioUnitScope_Input)
+        let device = channels(kAudioUnitScope_Output)
+        MixPillCoreLog.log("DeviceOutputEngine: render callback width \(client.map(String.init) ?? "unknown") channel(s), device presents \(device.map(String.init) ?? "unknown")")
     }
 
     private func allocateAccumulator(capacity: Int) {
@@ -334,6 +377,7 @@ final class DeviceOutputEngine: @unchecked Sendable {
 
         let previous = limiterGain
         limiterGain += (target - limiterGain) * coefficient
+        limiterGainBits.store(limiterGain.bitPattern, ordering: .relaxed)
 
         if previous != 1.0 || limiterGain != 1.0 {
             var step = (limiterGain - previous) / Float(frames)
@@ -387,11 +431,17 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
     /// every buffer it is handed — continuous dropouts, which is exactly
     /// what the old 384-frame floor did in low-latency mode.
     ///
-    /// Capacity is a ceiling, not a target: the ring drops oldest and the
-    /// render callback drains it every I/O cycle, so steady-state occupancy
-    /// (and therefore latency) tracks the producer block regardless of how
-    /// much headroom sits behind it.
-    private static let minimumRingFrames = 8192
+    /// Capacity is a ceiling, not a target — but that only became true when
+    /// `RingBufferManager` learned to steer its occupancy back down. Before
+    /// that, headroom was latency waiting to happen: any stall filled the
+    /// ring and it stayed filled, so a bigger ring bought a bigger permanent
+    /// delay. Now the controller holds occupancy near the target regardless,
+    /// and capacity buys exactly one thing: how long the output can be
+    /// descheduled before frames start being discarded. At 48 kHz this is
+    /// 683 ms, against the 170 ms that measured ~20 discarded blocks a
+    /// second with every core spinning. It costs 256 KB per captured
+    /// application and no latency at all.
+    private static let minimumRingFrames = 32768
 
     private static func ringCapacity(for bufferFrames: UInt32) -> Int {
         max(minimumRingFrames, Int(bufferFrames) * 4)
@@ -422,6 +472,8 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
     private var retiredStrips: [ChannelStrip] = []
     private var lowLatencyEnabled = false
     private let masterVolume = Atomic<Float>(1.0)
+    /// Last master gain written to the log; see `logApplied`. Control queue.
+    private var loggedMasterVolume: Float = .nan
     /// Listener blocks by device, kept so they can be removed again.
     /// `AudioObjectRemovePropertyListenerBlock` matches on the block, and a
     /// bare `Set<AudioDeviceID>` also suppressed re-registration after a
@@ -457,8 +509,14 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
         }
     }
 
-    func applyChannel(_ config: ChannelConfig) {
-        queue.sync { applyChannelLocked(config) }
+    /// `source` names the message that carried this value, and it is on
+    /// the log line for one reason: a value arriving is not the same fact
+    /// as a value *sticking*. When a fader stops working, the question is
+    /// which of the interface's three routes — a single channel from a row,
+    /// the whole table re-pushed after a discovery event, or a full
+    /// configuration snapshot — wrote last.
+    func applyChannel(_ config: ChannelConfig, source: String = "unspecified") {
+        queue.sync { applyChannelLocked(config, source: source) }
     }
 
     /// Guarantees a strip exists for an application the capture layer has
@@ -484,16 +542,16 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
                 noiseGateThreshold: 0,
                 compressorEnabled: false,
                 routePairID: "system-default"
-            ))
+            ), source: "default")
         }
     }
 
     /// Call on `queue` only.
-    private func applyChannelLocked(_ config: ChannelConfig) {
+    private func applyChannelLocked(_ config: ChannelConfig, source: String = "unspecified") {
         let routingKey = resolveRouting(pairID: config.routePairID)
 
         if let existing = strip(for: config.bundleID) {
-            updateStrip(existing, with: config, routingKey: routingKey)
+            updateStrip(existing, with: config, routingKey: routingKey, source: source)
             return
         }
 
@@ -515,6 +573,27 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
         publishStripSnapshot()
 
         attach(strip, to: routingKey)
+        logApplied(strip, source: source)
+    }
+
+    /// Records what the engine ended up applying, read back from the
+    /// parameter block rather than from the configuration that set it.
+    ///
+    /// This is the externally visible half of the answer: the panel shows
+    /// the same values live, but a log line can be read from outside the
+    /// process, which is what makes "did that fader reach the engine?"
+    /// measurable instead of arguable. Control queue.
+    private func logApplied(_ strip: ChannelStrip, source: String) {
+        let params = strip.dsp.parameters.load()
+        let gain = params.isMuted ? 0 : params.volume * params.duckingTarget
+        let state = "gain \(gain) (\(AudioScale.faderLabel(forGain: gain)))"
+            + ", muted=\(params.isMuted)"
+            + ", eq=\(params.eqEnabled ? strip.eqGains.description : "off")"
+            + ", bypassed=\(params.processingBypassed)"
+            + ", route=\(strip.desiredPairID), via \(source)"
+        guard state != strip.loggedState else { return }
+        strip.loggedState = state
+        MixPillCoreLog.log("Applied \(strip.bundleID): \(state)")
     }
 
     func removeChannel(_ bundleID: String) {
@@ -556,6 +635,10 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
     private func publishMasterVolumeLocked(_ volume: Float) {
         for (_, engine) in engines {
             engine.masterGain.store(volume, ordering: .relaxed)
+        }
+        if volume != loggedMasterVolume {
+            loggedMasterVolume = volume
+            MixPillCoreLog.log("Applied master: gain \(volume) (\(AudioScale.faderLabel(forGain: volume))) across \(engines.count) engine(s)")
         }
     }
 
@@ -735,7 +818,7 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
         engine.stripList.store(members.map { Unmanaged.passUnretained($0) })
     }
 
-    private func updateStrip(_ strip: ChannelStrip, with config: ChannelConfig, routingKey: MixEngineKey) {
+    private func updateStrip(_ strip: ChannelStrip, with config: ChannelConfig, routingKey: MixEngineKey, source: String) {
         var params = strip.dsp.parameters.load()
         params.volume = config.volume
         params.isMuted = config.isMuted
@@ -768,6 +851,7 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
         if routingKey != strip.routingKey {
             move(strip, to: routingKey)
         }
+        logApplied(strip, source: source)
     }
 
     private func makeParameters(from config: ChannelConfig) -> ChannelDSPParameters {
@@ -896,25 +980,89 @@ final class LowLatencyMixerEngine: @unchecked Sendable {
 
     // MARK: - Diagnostics
 
-    /// Aggregate ring health across every strip.
-    func ringHealth() -> (underruns: Int, drops: Int) {
-        allStrips().reduce(into: (0, 0)) { total, strip in
-            total.0 += strip.ring.underruns
-            total.1 += strip.ring.drops
+    /// How much gain the output limiter is currently taking off, in dB,
+    /// across the busiest engine. Zero when it is not working.
+    ///
+    /// This is the missing half of "why did turning it up do nothing?".
+    /// The limiter is doing exactly its job — the sum was already at the
+    /// ceiling — but until the number is on screen the only visible fact is
+    /// a fader that moved and a loudness that did not.
+    func limiterReductionDB() -> Float {
+        queue.sync {
+            let gain = engines.values
+                .filter(\.running)
+                .map { Float(bitPattern: $0.limiterGainBits.load(ordering: .relaxed)) }
+                .min() ?? 1
+            guard gain < 1 else { return 0 }
+            return -AudioScale.decibels(fromAmplitude: gain)
         }
+    }
+
+    /// What the render pass is actually applying, per channel.
+    ///
+    /// Read back from the same parameter blocks the render thread reads,
+    /// not from the message that set them. Between a fader and the sound
+    /// there is a preference file, an XPC hop, a decode and a parameter
+    /// store; when the sound does not move, the only question worth asking
+    /// is which of those the value stopped at, and nothing on the interface
+    /// side can answer it.
+    func appliedChannels() -> [AppliedChannelDTO] {
+        allStrips()
+            .map { strip in
+                let params = strip.dsp.parameters.load()
+                return AppliedChannelDTO(
+                    bundleID: strip.bundleID,
+                    appliedGain: params.isMuted ? 0 : params.volume * params.duckingTarget,
+                    isMuted: params.isMuted,
+                    eqEnabled: params.eqEnabled,
+                    processingBypassed: params.processingBypassed
+                )
+            }
+            .sorted { $0.bundleID < $1.bundleID }
+    }
+
+    /// Aggregate ring health across every strip.
+    ///
+    /// Starvations are reported alongside underruns rather than folded into
+    /// them: a partial read is a hole in a stream that kept going, while a
+    /// starvation is the stream stopping. Under load it is the second that
+    /// dominates, and a single total would have hidden which one was
+    /// happening.
+    func ringHealth() -> (underruns: Int, starvations: Int, drops: Int, resyncs: Int) {
+        allStrips().reduce(into: (0, 0, 0, 0)) { total, strip in
+            total.0 += strip.ring.underruns
+            total.1 += strip.ring.starvations
+            total.2 += strip.ring.drops
+            total.3 += strip.ring.resyncs
+        }
+    }
+
+    /// The largest rate correction any live channel is applying, signed.
+    /// Zero when nothing is playing.
+    func clockCorrectionPPM() -> Int {
+        allStrips()
+            .filter(\.ring.isPrimed)
+            .map(\.ring.rateCorrectionPPM)
+            .max(by: { abs($0) < abs($1) }) ?? 0
     }
 
     /// Per-app ring state, for working out *which* channel is misbehaving
     /// rather than that some channel is.
-    func ringDetail() -> [(bundleID: String, underruns: Int, drops: Int, filled: Int, capacity: Int, rendered: Bool)] {
+    func ringDetail() -> [(bundleID: String, underruns: Int, starvations: Int, drops: Int, resyncs: Int, filled: Int, average: Int, ppm: Int, target: Int, capacity: Int, primed: Bool, rendered: Bool)] {
         queue.sync {
             let rendered = Set(engines.values.flatMap { engine -> [ObjectIdentifier] in
                 let list = engine.stripList.load()
                 return (0..<list.count).map { ObjectIdentifier(list[$0].takeUnretainedValue()) }
             })
+            let consumerFrames = Int(engines[.systemDefault]?.ioBufferFrames
+                ?? engines.values.first?.ioBufferFrames
+                ?? requestedBufferFrames)
             return allStrips().map { strip in
-                (strip.bundleID, strip.ring.underruns, strip.ring.drops,
-                 strip.ring.availableFrames, strip.ring.capacity,
+                (strip.bundleID, strip.ring.underruns, strip.ring.starvations, strip.ring.drops,
+                 strip.ring.resyncs, strip.ring.availableFrames, strip.ring.smoothedFill,
+                 strip.ring.rateCorrectionPPM,
+                 strip.ring.targetFrames(consumerFrames: consumerFrames),
+                 strip.ring.capacity, strip.ring.isPrimed,
                  rendered.contains(ObjectIdentifier(strip)))
             }
         }

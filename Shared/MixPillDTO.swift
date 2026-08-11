@@ -115,9 +115,17 @@ public struct LevelSample: Codable, Sendable {
 
 public struct LevelsPayload: Codable, Sendable {
     public let samples: [LevelSample]
+    /// Gain the output limiter is taking off the summed mix right now, in
+    /// dB, 0 when it is idle.
+    ///
+    /// It rides with the meters because it is a meter: it moves with the
+    /// programme material, and it is the only honest answer to a channel
+    /// boost that produces no extra loudness on an already-loud source.
+    public let limiterReductionDB: Float
 
-    public init(samples: [LevelSample]) {
+    public init(samples: [LevelSample], limiterReductionDB: Float = 0) {
         self.samples = samples
+        self.limiterReductionDB = limiterReductionDB
     }
 }
 
@@ -179,6 +187,40 @@ public struct DevicesPayload: Codable, Sendable {
     }
 }
 
+/// What the engine is *actually* applying to one channel, read back from
+/// the live parameter block the render thread reads.
+///
+/// Deliberately not derived from the interface's own model. Those two are
+/// separated by a preference file, an XPC hop and a DSP parameter store,
+/// and when a fader appears not to work the only useful question is which
+/// side of that chain the value stopped at. A panel that re-displays the
+/// interface's own number cannot answer it; this is the engine's answer.
+public struct AppliedChannelDTO: Codable, Hashable, Sendable {
+    public let bundleID: String
+    /// Linear gain the render pass multiplies by, with mute and Smart
+    /// Ducking's target folded in — the number, not the intent. (Ducking
+    /// is smoothed over 0.4 s on the render thread, so this is where that
+    /// ramp is heading rather than exactly where it is this millisecond.)
+    public let appliedGain: Float
+    public let isMuted: Bool
+    public let eqEnabled: Bool
+    public let processingBypassed: Bool
+
+    public init(
+        bundleID: String,
+        appliedGain: Float,
+        isMuted: Bool,
+        eqEnabled: Bool,
+        processingBypassed: Bool
+    ) {
+        self.bundleID = bundleID
+        self.appliedGain = appliedGain
+        self.isMuted = isMuted
+        self.eqEnabled = eqEnabled
+        self.processingBypassed = processingBypassed
+    }
+}
+
 /// Diagnostics panel snapshot, answered on demand core → UI.
 public struct DiagnosticsDTO: Codable, Sendable {
     public var engineHealthy: Bool
@@ -193,6 +235,30 @@ public struct DiagnosticsDTO: Codable, Sendable {
     public var hardwareSampleRate: Double?
     public var lastRecoveryReason: String
     public var lastRecoveryDate: Date?
+    /// Ring dropouts since the service started. A starvation is an empty
+    /// read on a channel that was playing — the failure that shows up
+    /// under load — and it is counted apart from a partial read because
+    /// one is the stream stopping and the other a hole punched in it.
+    public var ringUnderruns: Int
+    public var ringStarvations: Int
+    public var ringDrops: Int
+    /// Times the occupancy controller has moved a read position back onto
+    /// its target. Not a dropout: it is the correction that stops one, and
+    /// a few per hour is simply what two unsynchronised audio clocks look
+    /// like. A number that climbs every few seconds means something is
+    /// stalling the IO cycle repeatedly, which is worth showing.
+    public var ringResyncs: Int
+    /// How far the rate loop is bending the stream to hold the two clocks
+    /// together, in parts per million, worst channel.
+    ///
+    /// This is the mechanism made visible. Two audio clocks are never
+    /// identical, and a number that sits steady at a few dozen ppm is the
+    /// loop doing exactly its job. One pinned at the limit means something
+    /// a resampler cannot fix — a device that stopped, or a rate the engine
+    /// was never told about.
+    public var clockCorrectionPPM: Int
+    /// The gains the engine is really applying, per channel.
+    public var appliedChannels: [AppliedChannelDTO]
 
     public init() {
         engineHealthy = true
@@ -204,6 +270,12 @@ public struct DiagnosticsDTO: Codable, Sendable {
         hardwareSampleRate = nil
         lastRecoveryReason = "None"
         lastRecoveryDate = nil
+        ringUnderruns = 0
+        ringStarvations = 0
+        ringDrops = 0
+        ringResyncs = 0
+        clockCorrectionPPM = 0
+        appliedChannels = []
     }
 }
 

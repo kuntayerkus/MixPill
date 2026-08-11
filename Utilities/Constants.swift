@@ -17,6 +17,11 @@ public struct Constants {
         public static let headerFontSize: CGFloat = 11
         public static let hoverOpacity: CGFloat = 0.06
         public static let cardOpacity: CGFloat = 0.03
+
+        /// Limiter reduction worth telling the user about, in dB. Below
+        /// this the limiter is only breathing on a transient, and a badge
+        /// blinking on every kick drum is noise, not information.
+        public static let limiterVisibleDB: Float = 0.5
     }
 
     // MARK: - Motion (Apple signature spring physics)

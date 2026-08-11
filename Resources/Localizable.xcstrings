@@ -165,6 +165,16 @@
         }
       }
     },
+    "0 dB max": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en çok 0 dB"
+          }
+        }
+      }
+    },
     "0 to 100 percent.": {
       "localizations": {
         "tr": {
@@ -225,6 +235,18 @@
         }
       }
     },
+    "A dropout is audio that stopped arriving in time; a partial block is a gap spliced into audio that kept coming. Both are counted since the engine last started, so what matters is whether they climb while you listen.": {
+      "extractionState": "stale",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kesinti, sesin zamanında ulaşmayı bırakmasıdır; kısmi blok ise gelmeye devam eden sesin içine açılan bir boşluktur. İkisi de motorun son açılışından beri sayılır, dolayısıyla önemli olan siz dinlerken artıp artmadıklarıdır."
+          }
+        }
+      }
+    },
+    "A dropout is audio that stopped arriving in time; a partial block is a gap spliced into audio that kept coming. The clock correction is MixPill continuously resampling to hold your app's audio clock and your output device's together — a steady reading of a few dozen ppm is it working, not a fault. A timing correction is the rarer, coarser fix used when a stall leaves too much to absorb that way. Counts are since the engine last started, so what matters is whether they climb while you listen.": {},
     "A preset captures every app's volume, mute, equalizer, noise gate and output device. Save one from the menu bar popover, then apply it by hand, from an automation rule, or from a Focus filter.": {
       "localizations": {
         "tr": {
@@ -286,11 +308,22 @@
       }
     },
     "Adjusts the overall output volume of MixPill": {
+      "extractionState": "stale",
       "localizations": {
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "MixPill’in genel çıkış düzeyini ayarlar"
+          }
+        }
+      }
+    },
+    "Adjusts the overall output volume of MixPill. Maximum is 0 decibels; boost above unity is on each app's own fader.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MixPill’in genel çıkış ses düzeyini ayarlar. Üst sınır 0 desibeldir; birim üstü yükseltme her uygulamanın kendi sürgüsündedir."
           }
         }
       }
@@ -331,6 +364,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uygulamalar"
+          }
+        }
+      }
+    },
+    "Applied by the Engine": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motorun Uyguladığı"
           }
         }
       }
@@ -765,6 +808,16 @@
         }
       }
     },
+    "Focus Shield is waiting for permission. Allow MixPill in System Settings › Privacy & Security › Accessibility and it turns itself on. Click to cancel.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odak Kalkanı izin bekliyor. Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik altında MixPill’e izin verin, kendiliğinden açılır. Vazgeçmek için tıklayın."
+          }
+        }
+      }
+    },
     "General": {
       "localizations": {
         "tr": {
@@ -841,6 +894,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Klavye ve kaydırma kısayollarıyla her uygulamadan ses denetimi sağlar"
+          }
+        }
+      }
+    },
+    "Limiter active": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limitleyici etkin"
           }
         }
       }
@@ -1125,6 +1188,26 @@
         }
       }
     },
+    "Off": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapalı"
+          }
+        }
+      }
+    },
+    "On": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açık"
+          }
+        }
+      }
+    },
     "On a call — other apps duck while this one is speaking": {
       "localizations": {
         "tr": {
@@ -1341,6 +1424,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "MixPill’den Çık (⌘Q)"
+          }
+        }
+      }
+    },
+    "Read back from the mixer itself, not from the sliders. If a channel here does not match what you set, the setting stopped somewhere between the interface and the engine.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sürgülerden değil, doğrudan mikserin kendisinden okunur. Buradaki bir kanal ayarladığınızla uyuşmuyorsa, ayar arayüzle motor arasında bir yerde kalmış demektir."
           }
         }
       }
@@ -1821,6 +1914,16 @@
         }
       }
     },
+    "Stream Health": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Akış Sağlığı"
+          }
+        }
+      }
+    },
     "System output": {
       "localizations": {
         "tr": {
@@ -1837,6 +1940,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "O preset artık yok. MixPill’de yeniden kaydedin."
+          }
+        }
+      }
+    },
+    "The master tops out at 0 dB — it sits after the mix, so raising it past unity would only feed the limiter. To make one app louder than the rest, push its own fader past unity.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ana sürgü en çok 0 dB’ye çıkar — karışımdan sonra geldiği için birimin üstüne çıkarmak yalnızca limitleyiciyi besler. Bir uygulamayı diğerlerinden yüksek yapmak için onun kendi sürgüsünü birimin üstüne itin."
+          }
+        }
+      }
+    },
+    "The mix is already at full scale, so MixPill is holding it back by this much. Turning a channel up further makes it louder than the others, not louder overall.": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karışım zaten tam ölçekte, bu yüzden MixPill onu bu kadar geri tutuyor. Bir kanalı daha da açmak onu diğerlerinden yüksek yapar, toplamı yükseltmez."
           }
         }
       }
@@ -1957,6 +2080,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ses düzeyi"
+          }
+        }
+      }
+    },
+    "Waiting for Accessibility permission": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erişilebilirlik izni bekleniyor"
           }
         }
       }

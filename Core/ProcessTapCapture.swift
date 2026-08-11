@@ -237,7 +237,14 @@ final class ProcessTapCapture: @unchecked Sendable {
 
     /// Aligns live taps with the set of applications we want captured.
     func sync(with processes: [AudioProcessRegistry.AudioProcess]) {
-        lifecycleQueue.async { self.performSync(with: processes) }
+        let queuedAt = Date()
+        lifecycleQueue.async {
+            let waited = Date().timeIntervalSince(queuedAt)
+            if waited > 0.5 {
+                MixPillCoreLog.log("ProcessTapCapture: tap work waited \(String(format: "%.2f", waited)) s for the lifecycle queue")
+            }
+            self.performSync(with: processes)
+        }
     }
 
     func stopAll() {
@@ -361,6 +368,24 @@ final class ProcessTapCapture: @unchecked Sendable {
     // MARK: - Tap lifecycle
 
     private func performStart(process: AudioProcessRegistry.AudioProcess) {
+        // Wall-clock around the HAL calls below.
+        //
+        // Between an application starting to play and MixPill's fader
+        // controlling it, two things can be slow and they need opposite
+        // responses: this queue waiting its turn, or `coreaudiod` taking
+        // its time. Only a timestamp on both sides can tell them apart, and
+        // on 2026-08-10 that distinction was the whole answer. Opening one
+        // tap took **120 s**, in four clean 30-second steps — the HAL's
+        // client-to-daemon timeout, once per property call on the new
+        // aggregate — on a machine carrying seven third-party CoreAudio
+        // drivers. The same sequence from a standalone command-line tool,
+        // run at the same moment, took 101 s; the very next tap MixPill
+        // opened took 0.03 s. So it is the daemon, not this code, and the
+        // numbers below are what make that provable from a log instead of
+        // arguable. They are also the first thing to read when someone
+        // reports that MixPill "took ages to notice" an app: a large
+        // `s in the HAL` is their audio stack, a large `waited` is ours.
+        let startedAt = Date()
         // Capture as a stereo mixdown, and undo its attenuation.
         //
         // A device-format tap is exact but carries the device's full width:
@@ -416,7 +441,9 @@ final class ProcessTapCapture: @unchecked Sendable {
         // format if this device will not give us one.
         var description = makeDescription(stereoMixdown: true)
         var tapID = AudioObjectID(kAudioObjectUnknown)
+        let tapClock = Date()
         var tapStatus = AudioHardwareCreateProcessTap(description, &tapID)
+        let tapSeconds = Date().timeIntervalSince(tapClock)
 
         if tapStatus != noErr || tapID == kAudioObjectUnknown, deviceUID != nil {
             MixPillCoreLog.log("ProcessTapCapture: stereo tap unavailable for \(process.bundleID) (status \(tapStatus)); falling back to the device format")
@@ -487,7 +514,9 @@ final class ProcessTapCapture: @unchecked Sendable {
         ]
 
         var aggregateID = AudioObjectID(kAudioObjectUnknown)
+        let aggregateClock = Date()
         let aggregateStatus = AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID)
+        let aggregateSeconds = Date().timeIntervalSince(aggregateClock)
         guard aggregateStatus == noErr, aggregateID != kAudioObjectUnknown else {
             MixPillCoreLog.log("ProcessTapCapture: aggregate failed for \(process.bundleID) (status \(aggregateStatus))")
             AudioHardwareDestroyProcessTap(tapID)
@@ -539,7 +568,9 @@ final class ProcessTapCapture: @unchecked Sendable {
         // Publish before starting: the IOProc can fire immediately.
         lock.withLockVoid { taps[process.bundleID] = tap }
 
+        let startClock = Date()
         let startStatus = AudioDeviceStart(aggregateID, ioProcID)
+        let startSeconds = Date().timeIntervalSince(startClock)
         guard startStatus == noErr else {
             MixPillCoreLog.log("ProcessTapCapture: start failed for \(process.bundleID) (status \(startStatus))")
             performStop(bundleID: process.bundleID)
@@ -569,7 +600,8 @@ final class ProcessTapCapture: @unchecked Sendable {
         // channel.
         mixer.ensureStrip(for: process.bundleID)
 
-        MixPillCoreLog.log("ProcessTapCapture: tapped \(process.bundleID) — \(process.objectIDs.count) process object(s), \(Int(format.mSampleRate)) Hz, \(tap.sourceChannelCount) ch, ×\(tap.mixdownCompensation) compensation, \(actualFrames == 0 ? captureBufferFrames : actualFrames)-frame blocks")
+        let elapsed = Date().timeIntervalSince(startedAt)
+        MixPillCoreLog.log("ProcessTapCapture: tapped \(process.bundleID) — \(process.objectIDs.count) process object(s), \(Int(format.mSampleRate)) Hz, \(tap.sourceChannelCount) ch, ×\(tap.mixdownCompensation) compensation, \(actualFrames == 0 ? captureBufferFrames : actualFrames)-frame blocks, \(String(format: "%.2f", elapsed)) s in the HAL (tap \(String(format: "%.2f", tapSeconds)) s, aggregate \(String(format: "%.2f", aggregateSeconds)) s, start \(String(format: "%.2f", startSeconds)) s)")
     }
 
     private func recordFailure(process: AudioProcessRegistry.AudioProcess, status: OSStatus) {

@@ -51,6 +51,34 @@ public struct DiagnosticsView: View {
             }
 
             Section {
+                metricRow("Dropouts", value: "\(snapshot.ringStarvations)")
+                metricRow("Partial Blocks", value: "\(snapshot.ringUnderruns)")
+                metricRow("Discarded Blocks", value: "\(snapshot.ringDrops)")
+                metricRow("Timing Corrections", value: "\(snapshot.ringResyncs)")
+                metricRow("Clock Correction", value: snapshot.clockCorrectionPPM == 0 ? "—" : "\(snapshot.clockCorrectionPPM > 0 ? "+" : "")\(snapshot.clockCorrectionPPM) ppm")
+            } header: {
+                SettingsSectionHeader("Stream Health")
+            } footer: {
+                Text("A dropout is audio that stopped arriving in time; a partial block is a gap spliced into audio that kept coming. The clock correction is MixPill continuously resampling to hold your app's audio clock and your output device's together — a steady reading of a few dozen ppm is it working, not a fault. A timing correction is the rarer, coarser fix used when a stall leaves too much to absorb that way. Counts are since the engine last started, so what matters is whether they climb while you listen.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            if !snapshot.appliedChannels.isEmpty {
+                Section {
+                    ForEach(snapshot.appliedChannels, id: \.bundleID) { channel in
+                        metricRow(channel.bundleID, value: appliedSummary(channel))
+                    }
+                } header: {
+                    SettingsSectionHeader("Applied by the Engine")
+                } footer: {
+                    Text("Read back from the mixer itself, not from the sliders. If a channel here does not match what you set, the setting stopped somewhere between the interface and the engine.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
                 metricRow("Last Recovery", value: snapshot.lastRecoveryReason)
                 if let date = snapshot.lastRecoveryDate {
                     metricRow("Recovered At", value: date.formatted(date: .abbreviated, time: .standard))
@@ -126,6 +154,15 @@ public struct DiagnosticsView: View {
         }
     }
 
+    /// The engine's own words for one channel: the gain it multiplies by,
+    /// then only the stages that are actually doing something.
+    private func appliedSummary(_ channel: AppliedChannelDTO) -> String {
+        var parts = [channel.isMuted ? "Muted" : AudioScale.faderLabel(forGain: channel.appliedGain)]
+        if channel.eqEnabled { parts.append("EQ") }
+        if channel.processingBypassed { parts.append("Direct") }
+        return parts.joined(separator: " · ")
+    }
+
     // MARK: - Refresh
 
     private func refresh() {
@@ -141,6 +178,12 @@ public struct DiagnosticsView: View {
             snapshot.hardwareSampleRate = result.hardwareSampleRate
             snapshot.lastRecoveryReason = result.lastRecoveryReason
             snapshot.lastRecoveryDate = result.lastRecoveryDate
+            snapshot.ringUnderruns = result.ringUnderruns
+            snapshot.ringStarvations = result.ringStarvations
+            snapshot.ringDrops = result.ringDrops
+            snapshot.ringResyncs = result.ringResyncs
+            snapshot.clockCorrectionPPM = result.clockCorrectionPPM
+            snapshot.appliedChannels = result.appliedChannels
         }
     }
 }
@@ -156,6 +199,12 @@ private struct DiagnosticsSnapshot {
     var cpuPercent: Double?
     var lastRecoveryReason = "None"
     var lastRecoveryDate: Date?
+    var ringUnderruns = 0
+    var ringStarvations = 0
+    var ringDrops = 0
+    var ringResyncs = 0
+    var clockCorrectionPPM = 0
+    var appliedChannels: [AppliedChannelDTO] = []
 }
 
 /// Whole-machine CPU usage, computed from the delta of Mach host load info
