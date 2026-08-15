@@ -1,0 +1,30 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>MixPill</title>
+        <item>
+            <title>3.2.3</title>
+            <pubDate>Sat, 15 Aug 2026 17:10:23 +0300</pubDate>
+            <sparkle:version>8</sparkle:version>
+            <sparkle:shortVersionString>3.2.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/kuntayerkus/MixPill/releases/download/v3.2.3/MixPill-3.2.3.dmg" length="3471665" type="application/octet-stream" sparkle:edSignature="t8tzyhKTRyC+tE5E+2NUNpG6wf8Eawl8zgfexjBUKAuc4vHEGLLbFU/QjFmzC2XEk34vExib2TXUv+nRjywuAw=="/>
+        </item>
+        <item>
+            <title>3.2.2</title>
+            <pubDate>Sat, 15 Aug 2026 02:50:23 +0300</pubDate>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>3.2.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/kuntayerkus/MixPill/releases/download/v3.2.2/MixPill-3.2.2.dmg" length="3448155" type="application/octet-stream" sparkle:edSignature="3VIt8DUZ1V0lGg+2IqpoGxOhgBw/OtqcEFKmZ5X3HA3aeTsRZd36kX7k/zG49hMIyl3X8VGV/jC8g4ddVV8bCQ=="/>
+        </item>
+        <item>
+            <title>3.2.0</title>
+            <pubDate>Mon, 10 Aug 2026 16:16:09 +0300</pubDate>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>3.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/kuntayerkus/MixPill/releases/download/v3.2.0/MixPill-3.2.0.dmg" length="3293579" type="application/octet-stream" sparkle:edSignature="3LVCblCLOHEaw5qzuVW0//eCRVwwF2GKv0P+/RQurobXO3ulwxY4zkfYVFu1hmB0clRiuarHbVriS8hcrPzqCw=="/>
+        </item>
+    </channel>
+</rss>
